@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bayugan Seismic Atlas 2015–2025</title>
+  <meta name="description" content="Historical earthquake (M≥2.0, depth 0–70 km) and active-fault reference map for Bayugan City, Agusan del Sur, Philippines." />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+/* ===== Bayugan Seismic Atlas — styles ===== */
+:root {
+  --bg: #0b1220;
+  --panel: #111a2e;
+  --panel-2: #172238;
+  --border: #243252;
+  --text: #e6ecf8;
+  --muted: #8fa0c0;
+  --accent: #38bdf8;
+  --sidebar-w: 400px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+a { color: var(--accent); }
+code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+button, input, select { font: inherit; color: inherit; }
+
+.app { display: flex; height: 100vh; height: 100dvh; }
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  width: var(--sidebar-w); flex-shrink: 0; background: var(--panel);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  overflow: hidden; z-index: 1100; transition: margin-left .3s ease;
+}
+.app.collapsed .sidebar { margin-left: calc(-1 * var(--sidebar-w)); }
+
+.brand { display: flex; gap: 12px; align-items: center; padding: 16px 18px 10px; }
+.brand h1 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.brand p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.brand-mark { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #f43f5e, #f59e0b); display: grid; place-items: center; flex-shrink: 0; }
+.brand-mark span { width: 10px; height: 10px; background: #fff; border-radius: 50%; animation: brandPulse 1.8s ease-out infinite; }
+@keyframes brandPulse { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,.7); } 100% { box-shadow: 0 0 0 14px rgba(255,255,255,0); } }
+
+.banner { margin: 0 18px 8px; padding: 9px 12px; font-size: 12px; line-height: 1.45; background: rgba(234,179,8,.12); border: 1px solid rgba(234,179,8,.4); color: #fde68a; border-radius: 8px; }
+
+.tabs { display: flex; gap: 4px; padding: 0 14px; border-bottom: 1px solid var(--border); }
+.tab { background: none; border: 0; padding: 10px 12px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+.panel { display: none; flex: 1; overflow-y: auto; min-height: 0; }
+.panel.active { display: block; }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 12px 14px 8px; }
+.stat { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 4px; text-align: center; }
+.stat span { display: block; font-size: 15px; font-weight: 700; }
+.stat label { font-size: 9.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+.filters { margin: 0 14px 8px; border: 1px solid var(--border); border-radius: 12px; background: rgba(23,34,56,.5); }
+.filters summary { cursor: pointer; padding: 10px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.filters[open] summary { border-bottom: 1px solid var(--border); }
+.filters > .row, .filters > .grid2, .filters > .btns { margin: 10px 12px 0; }
+.filters > .btns { margin-bottom: 12px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row { margin-bottom: 0; }
+.row.pad { padding: 0 14px 8px; }
+.row label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.row label b { color: var(--text); }
+select, input[type="date"], input[type="search"] {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 9px; font-size: 13px; color-scheme: dark;
+}
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.seg { display: flex; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { flex: 1; background: none; border: 0; padding: 7px; font-size: 12.5px; cursor: pointer; color: var(--muted); }
+.seg button.active { background: var(--accent); color: #06202e; font-weight: 600; }
+
+.btns { display: flex; gap: 8px; }
+.ghost { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; font-size: 12.5px; cursor: pointer; transition: border-color .15s; text-align: center; }
+.ghost:hover { border-color: var(--accent); }
+.ghost.small { padding: 4px 9px; font-size: 12px; }
+.filebtn { display: inline-block; }
+
+.list-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px 6px; }
+.list-head h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+
+/* Event table */
+.table-wrap { padding: 0 10px; }
+.qtable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.qtable th { position: sticky; top: 0; background: var(--panel); text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 7px 6px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.qtable th i { font-style: normal; opacity: .9; color: var(--accent); }
+.qtable td { padding: 7px 6px; border-bottom: 1px solid rgba(36,50,82,.6); vertical-align: middle; }
+.qtable tr.row-q { cursor: pointer; transition: background .12s; }
+.qtable tr.row-q:hover, .qtable tr.row-q.active { background: var(--panel-2); }
+.qtable tr.row-q.active { box-shadow: inset 3px 0 0 var(--accent); }
+.badge { display: inline-block; min-width: 38px; text-align: center; padding: 2px 6px; border-radius: 6px; font-weight: 700; font-size: 12px; color: #0b1220; background: var(--c); }
+.dchip { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 5px; }
+.sub { display: block; color: var(--muted); font-size: 11px; margin-top: 1px; }
+.demo-tag { font-size: 10px; color: #fde68a; border: 1px solid rgba(234,179,8,.5); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+.tnote { padding: 8px 14px 14px; font-size: 11.5px; color: var(--muted); }
+.empty { text-align: center; color: var(--muted); padding: 24px 10px; }
+
+/* Barangays */
+.info-card { margin: 12px 14px 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; font-size: 12.5px; line-height: 1.5; }
+.muted { color: var(--muted); display: block; margin-top: 4px; font-size: 11.5px; }
+.brgy-list { list-style: none; padding: 0 10px 14px; }
+.brgy-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; margin-bottom: 4px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid transparent; background: var(--panel-2); }
+.brgy-list li:hover, .brgy-list li.active { border-color: var(--accent); }
+.brgy-list small { color: var(--muted); font-size: 11.5px; }
+.brgy-list .no { color: var(--muted); font-size: 11px; margin-right: 8px; width: 20px; display: inline-block; }
+
+/* About */
+.about { padding: 14px 18px 20px; font-size: 13px; line-height: 1.55; }
+.about h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 14px 0 5px; }
+.about h3:first-child { margin-top: 0; }
+.disclaimer { background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.4); padding: 10px 12px; border-radius: 10px; }
+
+.foot { padding: 9px 18px; font-size: 11px; line-height: 1.4; color: var(--muted); border-top: 1px solid var(--border); background: var(--panel); }
+
+/* ---------- Map ---------- */
+.map-wrap { position: relative; flex: 1; min-width: 0; }
+#map { position: absolute; inset: 0; background: #0b1220; }
+
+.side-toggle, .map-controls button, .legend-toggle {
+  background: rgba(17,26,46,.92); border: 1px solid var(--border); backdrop-filter: blur(6px);
+  border-radius: 10px; padding: 9px 13px; font-size: 13px; font-weight: 500; cursor: pointer; transition: border-color .15s;
+}
+.side-toggle:hover, .map-controls button:hover, .legend-toggle:hover { border-color: var(--accent); }
+.side-toggle { position: absolute; top: 14px; left: 14px; z-index: 1000; font-size: 16px; padding: 7px 12px; }
+.map-controls { position: absolute; top: 14px; right: 14px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+.map-controls { top: 14px; right: 60px; flex-direction: row; }
+
+.legend { position: absolute; left: 14px; bottom: 24px; z-index: 1000; width: 250px; max-height: calc(100% - 100px); overflow-y: auto; background: rgba(17,26,46,.94); border: 1px solid var(--border); border-radius: 14px; backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.legend-toggle { width: 100%; text-align: left; border: 0; background: transparent; font-weight: 600; }
+.legend-body { padding: 0 14px 12px; }
+.legend.collapsed .legend-body { display: none; }
+.legend h3 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 10px 0 5px; }
+.lg { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 3px 0; }
+.lg .dot { width: 12px; height: 12px; flex-shrink: 0; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.lg .line { width: 26px; flex-shrink: 0; height: 0; border-top: 4px solid var(--c); border-radius: 2px; }
+.lg .band { width: 26px; flex-shrink: 0; height: 12px; background: rgba(244,63,94,.25); border-radius: 3px; }
+.lg .pin { width: 11px; height: 11px; flex-shrink: 0; background: #38bdf8; border: 2px solid #fff; border-radius: 3px; transform: rotate(45deg); margin: 0 7px; }
+.lg .circ { width: 22px; height: 22px; flex-shrink: 0; border: 2px dashed #38bdf8; border-radius: 50%; margin: 0 2px; }
+.lg .ringsym { width: 18px; height: 18px; flex-shrink: 0; border: 2px solid #f97316; border-radius: 50%; background: rgba(249,115,22,.3); margin: 0 4px; animation: pulse 2s ease-out infinite; }
+.sizes { display: flex; align-items: flex-end; justify-content: space-between; gap: 4px; padding: 2px 4px; }
+.sizes div { text-align: center; font-size: 10.5px; color: var(--muted); }
+.sizes span { display: block; margin: 0 auto 3px; border-radius: 50%; border: 2px solid #cbd5e1; background: rgba(203,213,225,.15); }
+.legend .note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+
+.toast { position: absolute; left: 50%; bottom: 24px; transform: translate(-50%, 20px); z-index: 1200; background: rgba(17,26,46,.96); border: 1px solid var(--border); border-radius: 10px; padding: 9px 14px; font-size: 13px; opacity: 0; pointer-events: none; transition: .25s; max-width: 80%; text-align: center; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Epicenter markers (pulsing) ---------- */
+.quake-icon { background: transparent; border: 0; }
+.quake { position: relative; width: var(--s); height: var(--s); }
+.quake .dot { position: absolute; inset: 24%; border-radius: 50%; background: var(--c); border: 1.5px solid rgba(255,255,255,.85); box-shadow: 0 0 10px var(--c); }
+.quake .ring { display: none; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--c); background: color-mix(in srgb, var(--c) 30%, transparent); opacity: 0; }
+.quake.pulse .ring { display: block; animation: pulse 2.6s ease-out infinite; }
+.quake.pulse .ring.r2 { animation-delay: 1.3s; }
+.quake.big.pulse .ring { animation-duration: 1.3s; }
+.quake.big.pulse .ring.r2 { animation-delay: .65s; }
+@keyframes pulse { 0% { transform: scale(.35); opacity: .9; } 100% { transform: scale(2.6); opacity: 0; } }
+.quake.selected .dot { box-shadow: 0 0 0 3px #fff, 0 0 16px var(--c); }
+
+.city-pin { width: 16px; height: 16px; background: #38bdf8; border: 3px solid #fff; border-radius: 4px; transform: rotate(45deg); box-shadow: 0 0 0 4px rgba(56,189,248,.3); }
+.map-label { background: rgba(17,26,46,.92); color: #fff; border: 1px solid var(--border); border-radius: 8px; font: 600 12px "Inter", sans-serif; padding: 3px 8px; box-shadow: none; }
+.map-label::before { display: none; }
+.fault-label { font-weight: 600; }
+
+.leaflet-popup-content-wrapper { background: var(--panel); color: var(--text); border-radius: 12px; border: 1px solid var(--border); }
+.leaflet-popup-tip { background: var(--panel); }
+.leaflet-popup-content { margin: 12px 14px; font-family: "Inter", sans-serif; }
+.pop h4 { font-size: 14px; margin-bottom: 6px; }
+.pop table { font-size: 12px; border-collapse: collapse; }
+.pop td { padding: 2px 10px 2px 0; }
+.pop td:first-child { color: var(--muted); }
+.pop .flag { font-size: 11px; color: #fde68a; margin-top: 6px; max-width: 240px; }
+.leaflet-bar a, .leaflet-control-layers { background: rgba(17,26,46,.92) !important; color: var(--text) !important; border-color: var(--border) !important; }
+.leaflet-control-attribution { background: rgba(11,18,32,.75) !important; color: var(--muted) !important; }
+.leaflet-control-attribution a { color: var(--accent) !important; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 860px) {
+  .sidebar { position: fixed; left: 0; right: 0; bottom: 0; width: 100%; height: 68vh; margin-left: 0 !important; border-right: 0; border-top: 1px solid var(--border); border-radius: 18px 18px 0 0; transform: translateY(100%); transition: transform .3s ease; box-shadow: 0 -10px 30px rgba(0,0,0,.4); }
+  .sidebar.open { transform: translateY(0); }
+  .map-controls { right: 56px; }
+  .legend { width: 210px; bottom: 14px; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quake.pulse .ring, .brand-mark span, .lg .ringsym { animation: none; opacity: .45; }
+}
+
+/* banner variant for informational messages */
+.banner.info { background: rgba(56,189,248,.1); border-color: rgba(56,189,248,.4); color: #bae6fd; }
+
+/* ---------- Search ---------- */
+.searchbox { padding: 12px 14px 4px; }
+.search-field { position: relative; }
+.search-field svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+.search-field input[type="search"] { padding: 10px 12px 10px 34px; font-size: 14px; border-radius: 10px; }
+.search-field input[type="search"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,.18); }
+.search-status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; line-height: 1.4; }
+.search-status b { color: var(--text); }
+.search-status button { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 12px; padding: 0; text-decoration: underline; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.chips:empty { display: none; }
+.chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(56,189,248,.12); border: 1px solid rgba(56,189,248,.35); color: #bae6fd; }
+.examples { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; align-items: center; font-size: 11px; color: var(--muted); }
+.examples[hidden] { display: none; }
+.examples button { font-size: 11.5px; padding: 3px 9px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); cursor: pointer; color: var(--text); }
+.examples button:hover { border-color: var(--accent); }
+
+/* ---------- Earthquake detail card ---------- */
+.detail { position: absolute; right: 14px; bottom: 44px; z-index: 1050; width: 340px; max-height: calc(100% - 190px); overflow-y: auto; background: rgba(17,26,46,.97); border: 1px solid var(--border); border-radius: 14px; backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0,0,0,.4); animation: detailIn .2s ease-out; }
+.detail[hidden] { display: none; }
+@keyframes detailIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.detail-close { position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--border); cursor: pointer; font-size: 13px; line-height: 1; z-index: 1; }
+.detail-close:hover { border-color: var(--accent); }
+.dt-head { display: flex; gap: 12px; padding: 14px 46px 12px 14px; align-items: flex-start; }
+.dt-mag { flex-shrink: 0; min-width: 58px; text-align: center; border-radius: 10px; padding: 6px 4px; background: var(--c); color: #0b1220; }
+.dt-mag b { display: block; font-size: 22px; line-height: 1.1; font-weight: 800; }
+.dt-mag span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.dt-title h3 { font-size: 14px; line-height: 1.3; }
+.dt-title p { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.dt-sec { padding: 10px 14px; border-top: 1px solid var(--border); }
+.dt-sec h4 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 7px; }
+.dt-sec p { font-size: 12.5px; line-height: 1.5; }
+.dt-sec p + p { margin-top: 6px; }
+.dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 12.5px; }
+.dl dt { color: var(--muted); }
+.dl dd { text-align: right; font-weight: 500; overflow-wrap: anywhere; }
+.dt-flag { font-size: 11px !important; color: #fde68a; margin-top: 7px; }
+.rel-list { list-style: none; margin-top: 6px; }
+.rel-list li { margin-top: 4px; }
+.rel-list button { width: 100%; display: flex; justify-content: space-between; gap: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: 12px; cursor: pointer; text-align: left; }
+.rel-list button:hover { border-color: var(--accent); }
+.dt-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px 14px; border-top: 1px solid var(--border); }
+.dt-actions a { text-decoration: none; display: inline-block; color: var(--text); }
+@media (max-width: 860px) {
+  .detail { left: 10px; right: 10px; bottom: 10px; width: auto; max-height: 52vh; }
+}
+@media (prefers-reduced-motion: reduce) { .detail { animation: none; } }
+
+
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar" aria-label="Dashboard sidebar">
+    <header class="brand">
+      <div class="brand-mark"><span></span></div>
+      <div>
+        <h1>Bayugan Seismic Atlas</h1>
+        <p>City of Bayugan · Agusan del Sur · 2015–2025</p>
+      </div>
+    </header>
+
+    <div class="banner" id="banner" hidden></div>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="quakes" role="tab">Earthquakes</button>
+      <button class="tab" data-tab="brgys" role="tab">Barangays</button>
+      <button class="tab" data-tab="about" role="tab">About</button>
+    </nav>
+
+    <!-- ---- TAB: EARTHQUAKES ---- -->
+    <section class="panel active" id="panel-quakes">
+      <div class="searchbox">
+        <div class="search-field">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="search" placeholder="Search any earthquake — place, M5+, 2024, Feb 2024…" autocomplete="off" spellcheck="false" aria-label="Search earthquakes" />
+        </div>
+        <div class="search-status" id="searchStatus" aria-live="polite"></div>
+        <div class="chips" id="searchChips"></div>
+        <div class="examples" id="searchExamples">
+          <span>Try:</span>
+          <button type="button" data-q="strongest">strongest</button>
+          <button type="button" data-q="M5+">M5+</button>
+          <button type="button" data-q="Feb 2024">Feb 2024</button>
+          <button type="button" data-q="shallow M4+">shallow M4+</button>
+          <button type="button" data-q="Talacogon">Talacogon</button>
+          <button type="button" data-q="latest">latest</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><span id="statCount">–</span><label>Events</label></div>
+        <div class="stat"><span id="statMax">–</span><label>Max mag</label></div>
+        <div class="stat"><span id="statDepth">–</span><label>Avg depth</label></div>
+        <div class="stat"><span id="statNear">–</span><label>Nearest</label></div>
+      </div>
+
+      <details class="filters">
+        <summary>Filters</summary>
+        <div class="grid2">
+          <div class="row">
+            <label for="dateFrom">From</label>
+            <input type="date" id="dateFrom" value="2015-01-01" min="2015-01-01" max="2025-12-31" />
+          </div>
+          <div class="row">
+            <label for="dateTo">To</label>
+            <input type="date" id="dateTo" value="2025-12-31" min="2015-01-01" max="2025-12-31" />
+          </div>
+        </div>
+        <div class="row">
+          <label for="minMag">Minimum magnitude <b id="minMagVal">2.0</b></label>
+          <input type="range" id="minMag" min="2" max="7" step="0.1" value="2" />
+        </div>
+        <div class="row">
+          <label for="maxDepth">Maximum focal depth <b id="maxDepthVal">70 km</b></label>
+          <input type="range" id="maxDepth" min="0" max="70" step="1" value="70" />
+        </div>
+        <div class="grid2">
+          <div class="row">
+            <label for="radius">Radius from city</label>
+            <select id="radius">
+              <option value="25">25 km</option>
+              <option value="50">50 km</option>
+              <option value="100">100 km</option>
+              <option value="150" selected>150 km</option>
+              <option value="250">250 km</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="source">Source agency</label>
+            <select id="source"><option value="">All</option></select>
+          </div>
+        </div>
+        <div class="row">
+          <label>Color markers by</label>
+          <div class="seg">
+            <button id="cbDepth" class="active">Focal depth</button>
+            <button id="cbMag">Magnitude</button>
+          </div>
+        </div>
+        <div class="btns">
+          <button id="resetFilters" class="ghost">Reset</button>
+          <button id="btnExport" class="ghost">⭳ CSV</button>
+          <label class="ghost filebtn">⭱ Import<input type="file" id="fileImport" accept=".csv,.json,.geojson" hidden /></label>
+        </div>
+      </details>
+
+      <div class="list-head">
+        <h2>Event table</h2>
+        <button id="reload" class="ghost small" title="Reload dataset">↻ Reload</button>
+      </div>
+      <div class="table-wrap">
+        <table class="qtable" id="qtable">
+          <thead>
+            <tr>
+              <th data-key="time">Date (PHT) <i></i></th>
+              <th data-key="mag">Mag <i></i></th>
+              <th data-key="depth">Depth <i></i></th>
+              <th data-key="dist">Dist <i></i></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <p class="tnote" id="tnote"></p>
+    </section>
+
+    <!-- ---- TAB: BARANGAYS ---- -->
+    <section class="panel" id="panel-brgys">
+      <div class="info-card">
+        <b>City of Bayugan</b> · 43 barangays · ≈689 km² (688.77 km²) · pop. 109,499 (2020 Census).
+        <span id="brgyStatus" class="muted"></span>
+      </div>
+      <div class="row pad">
+        <input type="search" id="brgySearch" placeholder="Search barangay…" />
+      </div>
+      <ul class="brgy-list" id="brgyList"></ul>
+    </section>
+
+    <!-- ---- TAB: ABOUT ---- -->
+    <section class="panel" id="panel-about">
+      <div class="about">
+        <h3>Study criteria</h3>
+        <p>Events from <b>1 Jan 2015 – 31 Dec 2025</b> with <b>magnitude ≥ 2.0</b> and <b>focal depth 0–70 km</b> are shown. Attributes: date/time, latitude, longitude, magnitude, depth, source agency.</p>
+
+        <h3>Searching</h3>
+        <p>Use the search box on the Earthquakes tab. Combine anything: a place or agency (<code>Talacogon</code>), magnitude (<code>M5.8</code>, <code>M5</code> = 5.0–5.9, <code>M4+</code>, <code>M4-5</code>, <code>strong</code>), dates (<code>2024</code>, <code>Feb 2024</code>, <code>10 Feb</code>, <code>2024-02-10</code>, <code>2020-2023</code>), depth (<code>shallow</code>, <code>deep</code>, <code>depth&lt;10</code>) and ordering (<code>strongest</code>, <code>latest</code>, <code>nearest</code>). Searching looks through the whole loaded catalog and ignores the filters. Click any result (or any marker) to open its details card.</p>
+
+        <h3>Data sources</h3>
+        <p>The app first tries the live <a href="https://earthquake.usgs.gov/fdsnws/event/1/" target="_blank" rel="noopener">USGS FDSN catalog</a>. USGS is far less complete than the local network for small events (M&lt;4), so for a full M≥2 study import your PHIVOLCS catalog export (CSV/JSON) with <b>⭱ Import</b>. If the live feed is unreachable, a clearly labelled <b>synthetic demo dataset</b> is shown instead.</p>
+
+        <h3>Faults</h3>
+        <p>The Esperanza and Agusan Marsh segments are parts of the Philippine Fault in the Agusan Valley. Published estimates give roughly 50 km and 65 km length respectively. Traces drawn here are <b>schematic, hand-placed approximations</b>, not survey-grade. Drop an official <code>data/faults.geojson</code> in place to replace them.</p>
+
+        <h3>Documented reference events</h3>
+        <p>The demo dataset includes two events reported by PHIVOLCS in the press (M5.8 east of Esperanza, 10 Feb 2024; M5.3 Talacogon, 26 Dec 2024). Their epicenter positions and times are approximate.</p>
+
+        <h3>Disclaimer</h3>
+        <p class="disclaimer">This map is for <b>historical reference and disaster-risk awareness</b> only. It is not an official PHIVOLCS product, is not a hazard assessment, and must not be used for engineering, land-use, insurance or emergency decisions. For official data and advisories use <a href="https://www.phivolcs.dost.gov.ph/" target="_blank" rel="noopener">PHIVOLCS</a> and <a href="https://faultfinder.phivolcs.dost.gov.ph/" target="_blank" rel="noopener">FaultFinder</a>.</p>
+      </div>
+    </section>
+
+    <footer class="foot">
+      Historical reference &amp; disaster-risk awareness only. Not an official PHIVOLCS product.
+    </footer>
+  </aside>
+
+  <!-- ============ MAP ============ -->
+  <main class="map-wrap">
+    <div id="map" aria-label="Earthquake and fault map of Bayugan City"></div>
+
+    <button class="side-toggle" id="sideToggle" aria-label="Toggle sidebar">☰</button>
+
+    <div class="map-controls">
+      <button id="btnHome" title="Recenter on Bayugan City">⌖ Bayugan</button>
+      <button id="btnFaults" title="Zoom to fault segments">⟋ Faults</button>
+    </div>
+
+    <div class="legend" id="legend">
+      <button class="legend-toggle" id="legendToggle">Legend ▾</button>
+      <div class="legend-body">
+        <h3 id="lgColorTitle">Focal depth (color)</h3>
+        <div id="lgColors"></div>
+        <h3>Magnitude (size)</h3>
+        <div class="sizes" id="lgSizes"></div>
+        <h3>Faults</h3>
+        <div class="lg"><span class="line" style="--c:#f43f5e"></span>Esperanza segment</div>
+        <div class="lg"><span class="line" style="--c:#f59e0b"></span>Agusan Marsh segment</div>
+        <div class="lg"><span class="band"></span>≈5 km zone either side</div>
+        <h3>Reference</h3>
+        <div class="lg"><span class="pin"></span>Bayugan city center</div>
+        <div class="lg"><span class="circ"></span>Area-equivalent circle (≈689 km², not the legal boundary)</div>
+        <div class="lg"><span class="ringsym"></span>Pulsing ring = epicenter</div>
+        <p class="note">Strong events (M≥5) pulse faster. With very many events, only M≥4 pulse to keep the map smooth.</p>
+      </div>
+    </div>
+
+    <aside class="detail" id="detail" hidden aria-label="Earthquake details">
+      <button class="detail-close" id="detailClose" aria-label="Close details">✕</button>
+      <div id="detailBody"></div>
+    </aside>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ===== Static reference data: city, 43 barangays, fault segments ===== */
+
+/* City center per PhilAtlas: 8°43'N 125°45'E (8.7143, 125.7481). Area 688.77 km² (PSA, 2013). */
+const BAYUGAN = {
+  name: "Bayugan City",
+  lat: 8.7143,
+  lon: 125.7481,
+  areaKm2: 688.77,
+  population2020: 109499
+};
+/* Radius of a circle with the same area as the city (NOT the legal boundary). */
+BAYUGAN.equivRadiusKm = Math.sqrt(BAYUGAN.areaKm2 / Math.PI);
+
+/* Study window and criteria */
+const STUDY = { start: "2015-01-01", end: "2025-12-31", minMag: 2.0, minDepth: 0, maxDepth: 70 };
+
+/* The 43 barangays of Bayugan with 2020 Census population (source: PSA via PhilAtlas). */
+const BARANGAYS = [
+  ["Berseba", 1808], ["Bucac", 4726], ["Cagbas", 2601], ["Calaitan", 1971], ["Canayugan", 1448],
+  ["Charito", 1384], ["Claro Cortez", 1067], ["Fili", 3662], ["Gamao", 1172], ["Getsemane", 446],
+  ["Grace Estate", 632], ["Hamogaway", 1635], ["Katipunan", 1145], ["Mabuhay", 1999], ["Magkiangkang", 1723],
+  ["Mahayag", 757], ["Marcelina", 3900], ["Maygatasan", 4908], ["Montivesta", 786], ["Mt. Ararat", 348],
+  ["Mt. Carmel", 2375], ["Mt. Olive", 1593], ["New Salem", 715], ["Noli", 4836], ["Osmeña", 1654],
+  ["Panaytay", 624], ["Pinagalaan", 1410], ["Poblacion", 16853], ["Sagmone", 1100], ["Saguma", 2237],
+  ["Salvacion", 5568], ["San Agustin", 697], ["San Isidro", 1094], ["San Juan", 4054], ["Santa Irene", 4570],
+  ["Santa Teresita", 1967], ["Santo Niño", 1551], ["Taglatawan", 12632], ["Taglibas", 499], ["Tagubay", 891],
+  ["Verdu", 1502], ["Villa Undayon", 1444], ["Wawa", 1515]
+].map(([name, pop2020]) => ({ name, pop2020 }));
+
+/*
+ * Philippine Fault segments in the Agusan Valley (segment names per PHIVOLCS / Perez et al., 2015;
+ * ~50 km Esperanza, ~65 km Agusan Marsh). The TRACES BELOW ARE SCHEMATIC, HAND-PLACED
+ * APPROXIMATIONS for orientation only — NOT survey-grade. Replace with the official
+ * PHIVOLCS FaultFinder data (https://faultfinder.phivolcs.dost.gov.ph/) by putting a
+ * GeoJSON file at data/faults.geojson (see app.js: loadOfficialFaults).
+ * Coordinates are [lat, lon].
+ */
+const FAULTS = [
+  {
+    id: "esperanza",
+    name: "Esperanza segment",
+    color: "#f43f5e",
+    lengthKm: 50,
+    coords: [[8.97, 125.52], [8.84, 125.58], [8.70, 125.64], [8.52, 125.72]],
+    note: "Northern segment of the Philippine Fault in the Agusan Valley, passing near the municipality of Esperanza (about 12 km WSW of Bayugan city center). Listed by PHIVOLCS-related studies among segments without a historical large rupture (possible seismic gap)."
+  },
+  {
+    id: "agusan-marsh",
+    name: "Agusan Marsh segment",
+    color: "#f59e0b",
+    lengthKm: 65,
+    coords: [[8.52, 125.72], [8.38, 125.82], [8.22, 125.93], [8.05, 126.05]],
+    note: "Continues south-southeast of the Esperanza segment along the eastern edge of the Agusan Marsh. PHIVOLCS identified it as the likely source of the M5.3 Talacogon earthquake of 26 Dec 2024."
+  }
+];
+
+</script>
+<script>
+/*
+ * ===== Demo / fallback dataset (2015–2025) =====
+ * Used ONLY when the live USGS catalog can't be reached (or returns nothing).
+ *
+ * - Most events are SYNTHETIC: generated with a seeded random generator
+ *   (deterministic, Gutenberg-Richter-like magnitudes ≥2.0, depths 0–70 km,
+ *   clustered along the schematic fault traces). They are NOT real earthquakes.
+ * - Two events are DOCUMENTED: reported by PHIVOLCS in press coverage
+ *   (magnitude, depth and date are as reported; epicenter position and
+ *   time-of-day are APPROXIMATE).
+ *
+ * Fields: id, time (ISO, UTC), lat, lon, mag, depth, source, place, demo, approx
+ */
+(function () {
+  // mulberry32 seeded PRNG so the demo set is identical on every load
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const rand = rng(20150101);
+  const gauss = () => { // Box–Muller
+    const u = 1 - rand(), v = rand();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  };
+
+  // Where synthetic events are scattered: [lat, lon, spread-deg, weight, label]
+  const ZONES = [
+    [8.75, 125.60, 0.07, 3, "near Esperanza"],
+    [8.40, 125.82, 0.07, 3, "near Talacogon"],
+    [8.62, 125.75, 0.10, 2, "near Bayugan"],
+    [9.10, 125.55, 0.12, 2, "Lake Mainit–Cabadbaran area"],
+    [8.10, 126.05, 0.12, 2, "near Bislig"],
+    [8.95, 126.20, 0.25, 2, "Surigao del Sur offshore"],
+    [7.80, 125.90, 0.25, 1, "Davao–Agusan border area"],
+    [8.50, 125.30, 0.25, 1, "Bukidnon foothills"]
+  ];
+  const totalW = ZONES.reduce((s, z) => s + z[3], 0);
+  function pickZone() {
+    let r = rand() * totalW;
+    for (const z of ZONES) { if ((r -= z[3]) <= 0) return z; }
+    return ZONES[0];
+  }
+
+  const start = Date.parse("2015-01-01T00:00:00+08:00");
+  const end = Date.parse("2025-12-31T23:59:00+08:00");
+  const out = [];
+  const N = 160;
+  for (let i = 0; i < N; i++) {
+    const z = pickZone();
+    // Gutenberg–Richter, b ≈ 1.0, truncated at M6.2
+    let mag = 2.0 - Math.log10(1 - rand() * (1 - Math.pow(10, -(6.2 - 2.0)))) ;
+    mag = Math.round(mag * 10) / 10;
+    // depth: mostly shallow, long tail to 70 km
+    let depth = Math.min(70, Math.max(1, Math.round(-Math.log(1 - rand()) * 14 + 2)));
+    out.push({
+      id: "demo-" + (i + 1),
+      time: new Date(start + rand() * (end - start)).toISOString(),
+      lat: +(z[0] + gauss() * z[2]).toFixed(3),
+      lon: +(z[1] + gauss() * z[2]).toFixed(3),
+      mag, depth,
+      source: "Demo (synthetic)",
+      place: "Synthetic · " + z[4],
+      demo: true
+    });
+  }
+
+  // Documented reference events (PHIVOLCS via press). Position & time-of-day approximate.
+  out.push({
+    id: "ref-2024-02-10",
+    time: "2024-02-10T04:00:00Z", // ~12:00 PHT, "around noon"
+    lat: 8.62, lon: 125.72, mag: 5.8, depth: 27,
+    source: "PHIVOLCS (press report)",
+    place: "East of Esperanza, Agusan del Sur · M5.8 (felt in Bayugan City)",
+    demo: false, approx: true
+  });
+  out.push({
+    id: "ref-2024-12-26",
+    time: "2024-12-26T10:00:00Z", // "Thursday evening" ~18:00 PHT
+    lat: 8.47, lon: 125.79, mag: 5.3, depth: 12,
+    source: "PHIVOLCS (press report)",
+    place: "Talacogon, Agusan del Sur · M5.3 (Agusan Marsh segment likely source)",
+    demo: false, approx: true
+  });
+
+  window.SAMPLE_QUAKES = out;
+})();
+
+</script>
+<script>
+/* ===== Bayugan Seismic Atlas — main application ===== */
+(() => {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const MAX_MARKERS = 1500;     // draw at most this many markers (strongest first)
+  const PULSE_ALL_LIMIT = 400;  // above this many events, only M>=4 pulse
+  const MOBILE = () => window.innerWidth <= 860;
+
+  const state = {
+    all: [],            // normalized dataset
+    rows: [],           // filtered + sorted
+    markers: new Map(),
+    selectedId: null,
+    colorBy: "depth",
+    sort: { key: "time", dir: -1 },
+    sourceLabel: "",
+    byId: new Map(),    // id -> event
+    query: null,        // parsed search query (null when not searching)
+    brgyLayers: new Map() // name -> polygon layer (if boundary file is present)
+  };
+
+  /* ---------------- Map ---------------- */
+  const map = L.map("map", { zoomControl: false }).setView([BAYUGAN.lat, BAYUGAN.lon], 10);
+  L.control.zoom({ position: "topright" }).addTo(map);
+  const base = {
+    "Dark": L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { attribution: "&copy; OpenStreetMap &copy; CARTO", maxZoom: 19, subdomains: "abcd" }),
+    "Light": L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { attribution: "&copy; OpenStreetMap &copy; CARTO", maxZoom: 19, subdomains: "abcd" }),
+    "Terrain": L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap", maxZoom: 17 }),
+    "Satellite": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri", maxZoom: 18 })
+  };
+  base.Dark.addTo(map);
+
+  const faultLayer = L.layerGroup().addTo(map);
+  const cityLayer = L.layerGroup().addTo(map);
+  const brgyLayer = L.layerGroup().addTo(map);
+  const quakeLayer = L.layerGroup().addTo(map);
+  L.control.layers(base, { "Epicenters": quakeLayer, "Fault segments": faultLayer, "City reference": cityLayer, "Barangay boundaries": brgyLayer }, { position: "topright" }).addTo(map);
+  L.control.scale({ imperial: false, position: "bottomright" }).addTo(map);
+
+  /* City center pin + area-equivalent circle (NOT the legal boundary) */
+  L.marker([BAYUGAN.lat, BAYUGAN.lon], {
+    icon: L.divIcon({ className: "", html: '<div class="city-pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+    zIndexOffset: 1000
+  }).bindTooltip(BAYUGAN.name, { permanent: true, direction: "right", offset: [12, 0], className: "map-label" }).addTo(cityLayer);
+  L.circle([BAYUGAN.lat, BAYUGAN.lon], {
+    radius: BAYUGAN.equivRadiusKm * 1000, color: "#38bdf8", weight: 1.5, dashArray: "6 6",
+    fillColor: "#38bdf8", fillOpacity: 0.04, interactive: false
+  }).addTo(cityLayer);
+
+  /* ---------------- Helpers ---------------- */
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371, r = (d) => d * Math.PI / 180;
+    const a = Math.sin(r(lat2 - lat1) / 2) ** 2 + Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(r(lon2 - lon1) / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+  const fmt = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+  const fmtDay = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric" });
+  const pht = (ms) => fmt.format(ms);
+  const phtDate = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 10);
+  const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  function bearing(lat1, lon1, lat2, lon2) { // degrees clockwise from north, point 1 -> point 2
+    const r = (d) => d * Math.PI / 180;
+    const y = Math.sin(r(lon2 - lon1)) * Math.cos(r(lat2));
+    const x = Math.cos(r(lat1)) * Math.sin(r(lat2)) - Math.sin(r(lat1)) * Math.cos(r(lat2)) * Math.cos(r(lon2 - lon1));
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+  const compass = (b) => COMPASS[Math.round(b / 22.5) % 16];
+
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 3800);
+  }
+  function banner(msg, kind) {
+    const b = $("banner");
+    b.hidden = !msg; b.className = "banner" + (kind ? " " + kind : "");
+    if (msg) b.textContent = msg;
+  }
+
+  /* Color + size classes */
+  const DEPTH_CLASSES = [
+    { max: 10, color: "#f43f5e", label: "0 – 10 km (very shallow)" },
+    { max: 30, color: "#f59e0b", label: "10 – 30 km (shallow)" },
+    { max: 50, color: "#22c55e", label: "30 – 50 km" },
+    { max: 70, color: "#38bdf8", label: "50 – 70 km" }
+  ];
+  const MAG_CLASSES = [
+    { max: 3, color: "#22c55e", size: 16, label: "2.0 – 2.9 Minor" },
+    { max: 4, color: "#eab308", size: 22, label: "3.0 – 3.9 Light" },
+    { max: 5, color: "#f97316", size: 30, label: "4.0 – 4.9 Moderate" },
+    { max: 6, color: "#ef4444", size: 40, label: "5.0 – 5.9 Strong" },
+    { max: 99, color: "#a855f7", size: 52, label: "6.0+ Major" }
+  ];
+  const magClass = (m) => MAG_CLASSES.find((c) => m < c.max);
+  const depthClass = (d) => DEPTH_CLASSES.find((c) => d <= c.max) || DEPTH_CLASSES[3];
+  const colorOf = (q) => (state.colorBy === "depth" ? depthClass(q.depth).color : magClass(q.mag).color);
+
+  function buildLegend() {
+    $("lgColorTitle").textContent = state.colorBy === "depth" ? "Focal depth (color)" : "Magnitude (color)";
+    $("lgColors").innerHTML = (state.colorBy === "depth" ? DEPTH_CLASSES : MAG_CLASSES)
+      .map((c) => `<div class="lg"><span class="dot" style="--c:${c.color}"></span>${c.label}</div>`).join("");
+    $("lgSizes").innerHTML = MAG_CLASSES
+      .map((c) => `<div><span style="width:${c.size * 0.6}px;height:${c.size * 0.6}px"></span>${c.label.split(" ")[0]}</div>`).join("");
+  }
+
+  /* ---------------- Faults ---------------- */
+  const faultShapes = []; // keep for fit bounds
+  let currentFaults = FAULTS;
+  function drawFaults(faults) {
+    currentFaults = faults;
+    faultLayer.clearLayers(); faultShapes.length = 0;
+    faults.forEach((f) => {
+      // soft band ≈ 5 km either side (visual hazard zone; zoom-independent approximation)
+      const band = L.polyline(f.coords, { color: f.color, weight: 34, opacity: 0.13, lineCap: "round", interactive: false }).addTo(faultLayer);
+      const line = L.polyline(f.coords, { color: f.color, weight: 4, opacity: 0.95, lineJoin: "round" }).addTo(faultLayer);
+      const lenKm = f.coords.reduce((s, c, i) => (i ? s + haversine(f.coords[i - 1][0], f.coords[i - 1][1], c[0], c[1]) : 0), 0);
+      line.bindPopup(`<div class="pop"><h4>${esc(f.name)}</h4>
+        <table><tr><td>Fault system</td><td>Philippine Fault (sinistral strike-slip)</td></tr>
+        <tr><td>Reported length</td><td>≈ ${f.lengthKm} km</td></tr>
+        <tr><td>Drawn trace</td><td>≈ ${lenKm.toFixed(0)} km (schematic)</td></tr></table>
+        <p class="flag">${esc(f.note)}<br><br>Trace is approximate — verify with PHIVOLCS FaultFinder.</p></div>`);
+      line.on("mouseover", () => line.setStyle({ weight: 7 })).on("mouseout", () => line.setStyle({ weight: 4 }));
+      const mid = f.coords[Math.floor(f.coords.length / 2)];
+      L.marker(mid, { interactive: false, opacity: 0 })
+        .bindTooltip(f.name, { permanent: true, direction: "left", offset: [-8, 0], className: "map-label fault-label" })
+        .addTo(faultLayer);
+      faultShapes.push(band);
+    });
+  }
+  // Optional: replace schematic traces with an official GeoJSON placed at data/faults.geojson
+  async function loadOfficialFaults() {
+    try {
+      const r = await fetch("data/faults.geojson", { cache: "no-store" });
+      if (!r.ok) return;
+      const gj = await r.json();
+      const faults = [];
+      (gj.features || []).forEach((ft, i) => {
+        const g = ft.geometry; if (!g) return;
+        const lines = g.type === "LineString" ? [g.coordinates] : g.type === "MultiLineString" ? g.coordinates : [];
+        const p = ft.properties || {};
+        const name = p.name || p.NAME || p.FAULT_NAME || p.Fault_Name || "Fault " + (i + 1);
+        lines.forEach((ln) => faults.push({
+          id: "off-" + i, name, color: /marsh/i.test(name) ? "#f59e0b" : "#f43f5e", lengthKm: p.length_km || "—",
+          coords: ln.map(([lon, lat]) => [lat, lon]), note: "Loaded from data/faults.geojson."
+        }));
+      });
+      if (faults.length) { drawFaults(faults); toast("Loaded official fault traces from data/faults.geojson"); }
+    } catch (_) { /* file not present — keep schematic traces */ }
+  }
+  drawFaults(FAULTS);
+  loadOfficialFaults();
+
+  /* ---------------- Barangays ---------------- */
+  function renderBarangays() {
+    const q = $("brgySearch").value.trim().toLowerCase();
+    const list = BARANGAYS.map((b, i) => ({ ...b, no: i + 1 })).filter((b) => b.name.toLowerCase().includes(q));
+    $("brgyList").innerHTML = list.map((b) =>
+      `<li data-name="${esc(b.name)}"><span><span class="no">${b.no}</span>${esc(b.name)}</span><small>${b.pop2020.toLocaleString()}</small></li>`).join("")
+      || '<li class="empty">No barangay matches.</li>';
+  }
+  const normName = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9ñ]/g, "").replace("brgy", "");
+  async function loadBarangayBoundaries() {
+    try {
+      const r = await fetch("data/bayugan_barangays.geojson", { cache: "no-store" });
+      if (!r.ok) throw new Error("none");
+      const gj = await r.json();
+      let n = 0;
+      L.geoJSON(gj, {
+        style: { color: "#94a3b8", weight: 1, fillColor: "#38bdf8", fillOpacity: 0.05 },
+        onEachFeature: (ft, layer) => {
+          const p = ft.properties || {};
+          const name = p.ADM4_EN || p.name || p.NAME || p.NAME_3 || p.BRGY_NAME || p.brgy || p.Barangay || "";
+          layer.bindTooltip(esc(name), { sticky: true, className: "map-label" });
+          state.brgyLayers.set(normName(name), layer);
+          n++;
+        }
+      }).addTo(brgyLayer);
+      $("brgyStatus").textContent = `Boundary polygons loaded (${n}). Click a barangay to zoom to it.`;
+    } catch (_) {
+      $("brgyStatus").textContent = "Boundary polygons not loaded. To draw barangay boundaries add a GeoJSON file at data/bayugan_barangays.geojson (e.g. from PSA/PhilGIS or HDX) with a barangay-name property.";
+    }
+  }
+  $("brgySearch").addEventListener("input", renderBarangays);
+  $("brgyList").addEventListener("click", (e) => {
+    const li = e.target.closest("li[data-name]"); if (!li) return;
+    document.querySelectorAll(".brgy-list li.active").forEach((x) => x.classList.remove("active"));
+    li.classList.add("active");
+    const layer = state.brgyLayers.get(normName(li.dataset.name));
+    if (layer) { map.fitBounds(layer.getBounds(), { maxZoom: 14 }); layer.openTooltip && layer.openTooltip(); }
+    else toast("No boundary file loaded — showing city overview.");
+    if (!layer) map.flyTo([BAYUGAN.lat, BAYUGAN.lon], 11);
+  });
+  renderBarangays();
+  loadBarangayBoundaries();
+
+  /* ---------------- Data loading ---------------- */
+  function normalize(rec) {
+    const time = typeof rec.time === "number" ? rec.time : Date.parse(rec.time);
+    const q = {
+      id: String(rec.id), time, lat: +rec.lat, lon: +rec.lon, mag: +rec.mag, depth: +rec.depth,
+      source: rec.source || "Unknown", place: rec.place || "", url: rec.url || null,
+      demo: !!rec.demo, approx: !!rec.approx, usgs: rec.usgs || null
+    };
+    q.dist = haversine(BAYUGAN.lat, BAYUGAN.lon, q.lat, q.lon);
+    q.dir = compass(bearing(BAYUGAN.lat, BAYUGAN.lon, q.lat, q.lon));
+    q.rel = q.dist < 1 ? "At " + BAYUGAN.name : `${Math.round(q.dist)} km ${q.dir} of ${BAYUGAN.name}`;
+    q.hay = (q.place + " " + q.source + " " + q.id).toLowerCase();
+    return q;
+  }
+  const valid = (q) => [q.time, q.lat, q.lon, q.mag, q.depth].every(Number.isFinite);
+
+  async function loadUSGS() {
+    const url = "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake" +
+      `&latitude=${BAYUGAN.lat}&longitude=${BAYUGAN.lon}&maxradiuskm=250` +
+      `&starttime=${STUDY.start}&endtime=2026-01-01&minmagnitude=${STUDY.minMag}&maxdepth=${STUDY.maxDepth}` +
+      "&orderby=time&limit=20000";
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 25000);
+    try {
+      const res = await fetch(url, { signal: ctl.signal });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const gj = await res.json();
+      return gj.features.map((f) => normalize({
+        id: f.id, time: f.properties.time, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1],
+        depth: f.geometry.coordinates[2], mag: f.properties.mag,
+        source: "USGS" + (f.properties.net ? " (" + f.properties.net + ")" : ""),
+        place: f.properties.place, url: f.properties.url,
+        usgs: {
+          magType: f.properties.magType, status: f.properties.status, felt: f.properties.felt, cdi: f.properties.cdi,
+          mmi: f.properties.mmi, alert: f.properties.alert, tsunami: f.properties.tsunami, sig: f.properties.sig, nst: f.properties.nst
+        }
+      })).filter(valid);
+    } finally { clearTimeout(t); }
+  }
+
+  function setData(rows) {
+    state.all = rows;
+    state.byId = new Map(rows.map((q) => [q.id, q]));
+    closeDetail();
+  }
+
+  async function loadData() {
+    $("tbody").innerHTML = '<tr><td colspan="4" class="empty">Loading catalog…</td></tr>';
+    try {
+      const rows = await loadUSGS();
+      if (!rows.length) throw new Error("empty result");
+      setData(rows);
+      state.sourceLabel = "USGS catalog";
+      banner(`Live USGS catalog: ${rows.length} events (M≥${STUDY.minMag}, depth ≤${STUDY.maxDepth} km, 2015–2025, within 250 km). USGS is incomplete for small events — import a PHIVOLCS export for full M≥2 coverage.`, "info");
+    } catch (err) {
+      console.warn("USGS unavailable:", err);
+      setData(window.SAMPLE_QUAKES.map(normalize).filter(valid));
+      state.sourceLabel = "Demo dataset";
+      banner("Live USGS catalog unreachable. Showing a DEMO dataset: mostly synthetic events (tagged “demo”) plus 2 approximate press-reported events. These are not a real catalog. Use ⭱ Import to load PHIVOLCS data.");
+    }
+    refreshSources();
+    applyFilters();
+    fitToData();
+  }
+
+  /* ---------------- Import (CSV / JSON / GeoJSON) ---------------- */
+  function parseCSV(text) {
+    const rows = []; let row = [], cur = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+      else if (c === '"') q = true;
+      else if (c === ",") { row.push(cur); cur = ""; }
+      else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cur); cur = ""; if (row.some((x) => x.trim() !== "")) rows.push(row); row = []; }
+      else cur += c;
+    }
+    row.push(cur); if (row.some((x) => x.trim() !== "")) rows.push(row);
+    return rows;
+  }
+  function parseTime(s) {
+    if (typeof s === "number") return s;
+    s = String(s).trim();
+    // naive local date-times are treated as Philippine Standard Time (UTC+8)
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(s)) s = s.replace(" ", "T") + "+08:00";
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s += "T00:00:00+08:00";
+    return Date.parse(s);
+  }
+  function fromTable(rows) {
+    const head = rows[0].map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
+    const idx = (...names) => head.findIndex((h) => names.includes(h));
+    const iT = idx("datetime", "datetimept", "datetimepht", "date", "time", "origintime", "datetimeph", "datetimeutc");
+    const iLat = idx("latitude", "lat"), iLon = idx("longitude", "lon", "lng", "long");
+    const iM = idx("magnitude", "mag", "mw", "ml"), iD = idx("depth", "depthkm", "focaldepth", "focaldepthkm");
+    const iS = idx("source", "agency", "sourceagency", "net"), iP = idx("place", "location", "region");
+    if ([iT, iLat, iLon, iM, iD].some((i) => i < 0)) throw new Error("CSV needs columns: date/time, latitude, longitude, magnitude, depth (km). Optional: source, place.");
+    return rows.slice(1).map((r, i) => ({
+      id: "imp-" + (i + 1), time: parseTime(r[iT]), lat: r[iLat], lon: r[iLon], mag: r[iM], depth: r[iD],
+      source: iS >= 0 ? r[iS] : "Imported", place: iP >= 0 ? r[iP] : ""
+    }));
+  }
+  function fromJSON(j) {
+    if (j && j.type === "FeatureCollection") {
+      return j.features.map((f, i) => {
+        const p = f.properties || {}, c = f.geometry.coordinates;
+        return { id: f.id || "imp-" + (i + 1), time: parseTime(p.time ?? p.datetime ?? p.date), lon: c[0], lat: c[1],
+          depth: c[2] ?? p.depth, mag: p.mag ?? p.magnitude, source: p.source || p.agency || p.net || "Imported", place: p.place || p.location || "" };
+      });
+    }
+    const arr = Array.isArray(j) ? j : j.events || j.data || [];
+    return arr.map((e, i) => ({
+      id: e.id || "imp-" + (i + 1), time: parseTime(e.time ?? e.datetime ?? e.date), lat: e.lat ?? e.latitude, lon: e.lon ?? e.lng ?? e.longitude,
+      mag: e.mag ?? e.magnitude, depth: e.depth ?? e.depth_km ?? e.focal_depth, source: e.source || e.agency || "Imported", place: e.place || e.location || ""
+    }));
+  }
+  $("fileImport").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const text = await f.text();
+      const raw = /\.csv$/i.test(f.name) ? fromTable(parseCSV(text)) : fromJSON(JSON.parse(text));
+      const rows = raw.map(normalize).filter(valid);
+      if (!rows.length) throw new Error("No valid rows found.");
+      setData(rows); state.sourceLabel = "Imported: " + f.name;
+      banner(`Imported ${rows.length} events from “${f.name}”. Times without a timezone are read as Philippine Standard Time.`, "info");
+      refreshSources(); applyFilters(); fitToData();
+    } catch (err) { toast("Import failed: " + err.message); }
+    e.target.value = "";
+  });
+
+  /* ---------------- Filters / table / markers ---------------- */
+  function refreshSources() {
+    const cur = $("source").value;
+    const names = [...new Set(state.all.map((q) => q.source))].sort();
+    $("source").innerHTML = '<option value="">All</option>' + names.map((s) => `<option>${esc(s)}</option>`).join("");
+    if (names.includes(cur)) $("source").value = cur;
+  }
+
+  function applyFilters() {
+    const from = $("dateFrom").value || STUDY.start, to = $("dateTo").value || STUDY.end;
+    const minMag = +$("minMag").value, maxDepth = +$("maxDepth").value, radius = +$("radius").value;
+    const src = $("source").value;
+    const pq = parseQuery($("search").value);
+    state.query = pq.active ? pq : null;
+    $("minMagVal").textContent = minMag.toFixed(1);
+    $("maxDepthVal").textContent = maxDepth + " km";
+
+    if (pq.active) {
+      // a search looks through the whole catalog: date / magnitude / depth / radius / source filters are bypassed
+      state.rows = state.all.filter((q) => pq.preds.every((p) => p(q)) && pq.terms.every((t) => q.hay.includes(t)));
+    } else {
+      state.rows = state.all.filter((q) => {
+        const d = phtDate(q.time);
+        return d >= from && d <= to && q.mag >= minMag && q.depth <= maxDepth && q.dist <= radius &&
+          (!src || q.source === src);
+      });
+    }
+    renderSearchInfo();
+    sortRows();
+    render();
+  }
+  function sortRows() {
+    const { key, dir } = (state.query && state.query.sort) || state.sort;
+    state.rows.sort((a, b) => (a[key] - b[key]) * dir);
+    document.querySelectorAll(".qtable th").forEach((th) => {
+      th.querySelector("i").textContent = th.dataset.key === key ? (dir > 0 ? "▲" : "▼") : "";
+    });
+  }
+
+  function render() {
+    renderStats(); renderMarkers(); renderTable(); buildLegend();
+  }
+  function renderStats() {
+    const r = state.rows;
+    $("statCount").textContent = r.length;
+    $("statMax").textContent = r.length ? "M" + Math.max(...r.map((q) => q.mag)).toFixed(1) : "–";
+    $("statDepth").textContent = r.length ? (r.reduce((s, q) => s + q.depth, 0) / r.length).toFixed(0) + " km" : "–";
+    $("statNear").textContent = r.length ? Math.round(Math.min(...r.map((q) => q.dist))) + " km" : "–";
+  }
+
+  function renderMarkers() {
+    quakeLayer.clearLayers(); state.markers.clear();
+    const drawn = [...state.rows].sort((a, b) => b.mag - a.mag).slice(0, MAX_MARKERS).sort((a, b) => a.mag - b.mag);
+    const pulseAll = state.rows.length <= PULSE_ALL_LIMIT;
+    drawn.forEach((q) => {
+      const size = magClass(q.mag).size;
+      const pulse = pulseAll || q.mag >= 4;
+      const icon = L.divIcon({
+        className: "quake-icon",
+        html: `<div class="quake ${pulse ? "pulse" : ""} ${q.mag >= 5 ? "big" : ""}" style="--c:${colorOf(q)};--s:${size}px">
+                 <span class="ring"></span><span class="ring r2"></span><span class="dot"></span></div>`,
+        iconSize: [size, size], iconAnchor: [size / 2, size / 2]
+      });
+      const m = L.marker([q.lat, q.lon], { icon, zIndexOffset: Math.round(q.mag * 100), title: `M${q.mag.toFixed(1)} · ${q.depth.toFixed(0)} km · ${pht(q.time)}` })
+        .on("click", () => select(q.id, false));
+      m.addTo(quakeLayer); state.markers.set(q.id, m);
+    });
+    if (state.selectedId && state.markers.has(state.selectedId))
+      state.markers.get(state.selectedId).getElement()?.querySelector(".quake")?.classList.add("selected");
+  }
+
+  function renderTable() {
+    const rows = state.rows, MAXROWS = 300;
+    if (!rows.length) {
+      $("tbody").innerHTML = '<tr><td colspan="4" class="empty">No earthquakes match ' + (state.query ? "your search" : "these filters") + '.</td></tr>';
+      $("tnote").textContent = ""; return;
+    }
+    $("tbody").innerHTML = rows.slice(0, MAXROWS).map((q) => `
+      <tr class="row-q ${q.id === state.selectedId ? "active" : ""}" data-id="${esc(q.id)}" tabindex="0">
+        <td>${fmtDay.format(q.time)}<span class="sub">${esc(q.place || q.rel)}</span><span class="sub">${esc(q.source)}${q.demo ? '<span class="demo-tag">demo</span>' : ""}${q.approx ? '<span class="demo-tag">approx</span>' : ""}</span></td>
+        <td><span class="badge" style="--c:${magClass(q.mag).color}">${q.mag.toFixed(1)}</span></td>
+        <td><span class="dchip" style="--c:${depthClass(q.depth).color}"></span>${q.depth.toFixed(0)} km</td>
+        <td>${q.dist.toFixed(0)} km</td>
+      </tr>`).join("");
+    $("tnote").textContent = `${state.sourceLabel} · showing ${Math.min(rows.length, MAXROWS)} of ${rows.length} events` +
+      (rows.length > MAX_MARKERS ? ` · map draws the ${MAX_MARKERS} strongest` : "") + ". Click a row to locate it.";
+  }
+
+  function select(id, fly = true) {
+    const q = state.byId.get(id); if (!q) return;
+    state.selectedId = id;
+    document.querySelectorAll(".row-q").forEach((el) => el.classList.toggle("active", el.dataset.id === id));
+    document.querySelectorAll(".quake.selected").forEach((el) => el.classList.remove("selected"));
+    showDetail(q);
+    const m = state.markers.get(id);
+    m?.getElement()?.querySelector(".quake")?.classList.add("selected");
+    if (fly) {
+      map.flyTo(m ? m.getLatLng() : [q.lat, q.lon], Math.max(map.getZoom(), 11), { duration: 0.8 });
+      if (MOBILE()) $("sidebar").classList.remove("open");
+    } else document.querySelector(`.row-q[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  function fitToData() {
+    const pts = state.rows.map((q) => [q.lat, q.lon]);
+    pts.push([BAYUGAN.lat, BAYUGAN.lon]);
+    if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.1), { maxZoom: 10 });
+  }
+
+  /* ---------------- Export ---------------- */
+  $("btnExport").addEventListener("click", () => {
+    if (!state.rows.length) return toast("Nothing to export.");
+    const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
+    const csv = ["datetime_pht,datetime_utc,latitude,longitude,magnitude,depth_km,source,place,dist_km"]
+      .concat(state.rows.map((r) => [q(pht(r.time)), new Date(r.time).toISOString(), r.lat, r.lon, r.mag, r.depth, q(r.source), q(r.place), r.dist.toFixed(1)].join(","))).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "bayugan_earthquakes_filtered.csv"; a.click(); URL.revokeObjectURL(a.href);
+  });
+
+  /* ---------------- Smart search ---------------- */
+  /*
+   * Understands plain text (place / source / id) plus shortcuts, in any order:
+   *   magnitude:  M5.8 · M5 (=5.0–5.9) · M4+ · M>=4.5 · M4-5 · above 5 · strong / light / major…
+   *   date:       2024 · 2020-2023 · Feb 2024 · 10 Feb · 2024-02-10 · 2024-02
+   *   depth:      shallow · deep · depth<10
+   *   ordering:   strongest · latest · oldest · nearest · deepest · shallowest
+   * While a search is active it looks through the WHOLE loaded catalog (filters & radius are bypassed).
+   */
+  const MONTH_RE = "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+  const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const monthIndex = (w) => ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(w.slice(0, 3)) + 1;
+  const STOP_WORDS = new Set(["earthquake", "earthquakes", "quake", "quakes", "lindol", "the", "in", "of", "near", "at", "from", "with", "a", "an", "and",
+    "around", "event", "events", "on", "mag", "magnitude", "m", "for", "show", "find", "all", "any", "sa", "ng"]);
+  const SORTS = {
+    strongest: ["mag", -1, "strongest first"], largest: ["mag", -1, "strongest first"], biggest: ["mag", -1, "strongest first"],
+    latest: ["time", -1, "newest first"], recent: ["time", -1, "newest first"], newest: ["time", -1, "newest first"],
+    oldest: ["time", 1, "oldest first"], earliest: ["time", 1, "oldest first"],
+    nearest: ["dist", 1, "nearest first"], closest: ["dist", 1, "nearest first"],
+    deepest: ["depth", -1, "deepest first"], shallowest: ["depth", 1, "shallowest first"]
+  };
+  const CLASS_WORDS = { minor: [2, 3], light: [3, 4], moderate: [4, 5], strong: [5, 6], major: [6, 99] };
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  function parseQuery(raw) {
+    const out = { active: false, preds: [], terms: [], chips: [], sort: null, sortLabel: "" };
+    let s = " " + String(raw || "").toLowerCase().replace(/[,;]/g, " ") + " ";
+    // replace the first match of `re` with a space; fn returning false rejects the match
+    const take = (re, fn) => { s = s.replace(re, (...m) => (fn(m) === false ? m[0] : " ")); };
+    const normOp = (o) => ({ "≥": ">=", "≤": "<=" }[o] || o || "");
+    const cmp = { ">=": (a, b) => a >= b, "<=": (a, b) => a <= b, ">": (a, b) => a > b, "<": (a, b) => a < b, "=": (a, b) => a === b };
+    const sym = (op) => (op === ">=" ? "≥" : op === "<=" ? "≤" : op);
+    const magPred = (fn, label) => { out.preds.push((q) => fn(Math.round(q.mag * 100) / 100)); out.chips.push(label); };
+    const datePred = (fn, label) => { out.preds.push((q) => fn(phtDate(q.time))); out.chips.push(label); };
+
+    // --- dates ---
+    take(/\b(\d{4})-(\d{2})-(\d{2})\b/, (m) => { const k = `${m[1]}-${m[2]}-${m[3]}`; datePred((d) => d === k, "Date " + k); });
+    take(/\b(20[12]\d)\s*(?:-|–|to)\s*(20[12]\d)\b/, (m) => {
+      const a = Math.min(+m[1], +m[2]), b = Math.max(+m[1], +m[2]);
+      datePred((d) => +d.slice(0, 4) >= a && +d.slice(0, 4) <= b, `Years ${a}–${b}`);
+    });
+    take(/\b(\d{4})-(0[1-9]|1[0-2])\b(?!-)/, (m) => { const k = `${m[1]}-${m[2]}`; datePred((d) => d.startsWith(k), "Month " + k); });
+
+    // --- magnitude ---
+    take(/\bm(?:ag(?:nitude)?)?\s*(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)(?![\d.])/, (m) => {
+      const lo = parseFloat(m[1]), hi = parseFloat(m[2]);
+      if (!(lo <= 10 && hi <= 10 && lo <= hi)) return false;
+      const whole = !m[2].includes(".");
+      magPred((x) => x >= lo - 1e-9 && x <= (whole ? hi + 0.99 : hi) + 1e-9, `Magnitude ${m[1]}–${whole ? m[2] + ".9" : m[2]}`);
+    });
+    take(/\b(?:over|above|at least|greater than|more than|minimum|min)\s*m?(\d+(?:\.\d+)?)(?![\d.])/, (m) => {
+      const v = parseFloat(m[1]); if (!(v <= 10)) return false;
+      magPred((x) => x >= v - 1e-9, `Magnitude ≥ ${m[1]}`);
+    });
+    take(/\bm(?:ag(?:nitude)?)?\s*(>=|<=|≥|≤|>|<|=)?\s*(\d+(?:\.\d+)?)\s*(\+)?/, (m) => {
+      const v = parseFloat(m[2]); if (!(v <= 10)) return false;
+      const op = normOp(m[1]) || (m[3] ? ">=" : "");
+      if (op) magPred((x) => cmp[op](x, v), `Magnitude ${sym(op)} ${m[2]}`);
+      else if (m[2].includes(".")) magPred((x) => Math.abs(x - v) < 0.05, `Magnitude ${m[2]}`);
+      else magPred((x) => x >= v - 1e-9 && x < v + 1, `Magnitude ${m[2]}.0–${m[2]}.9`);
+    });
+    take(/(?:^|\s)(\d+(?:\.\d+)?)\s*\+(?=\s|$)/, (m) => {
+      const v = parseFloat(m[1]); if (!(v >= 1 && v <= 10)) return false;
+      magPred((x) => x >= v - 1e-9, `Magnitude ≥ ${m[1]}`);
+    });
+    take(/\b(minor|light|moderate|strong|major)\b/, (m) => {
+      const [lo, hi] = CLASS_WORDS[m[1]];
+      magPred((x) => x >= lo && x < hi, `${cap(m[1])} (M${lo}.0${hi < 99 ? "–" + (hi - 0.1).toFixed(1) : "+"})`);
+    });
+
+    // --- depth ---
+    take(/\bdepth\s*(>=|<=|≥|≤|>|<|=)?\s*(\d+(?:\.\d+)?)\s*(?:km)?/, (m) => {
+      const v = parseFloat(m[2]), op = normOp(m[1]) || "<=";
+      out.preds.push(op === "=" ? (q) => Math.abs(q.depth - v) <= 0.5 : (q) => cmp[op](q.depth, v));
+      out.chips.push(`Depth ${sym(op)} ${m[2]} km`);
+    });
+    take(/\bshallow(?:er)?\b/, () => { out.preds.push((q) => q.depth <= 30); out.chips.push("Depth ≤ 30 km (shallow)"); });
+    take(/\bdeep\b/, () => { out.preds.push((q) => q.depth >= 50); out.chips.push("Depth ≥ 50 km (deep)"); });
+
+    // --- ordering ---
+    take(/\b(strongest|largest|biggest|latest|recent|newest|oldest|earliest|nearest|closest|deepest|shallowest)\b/, (m) => {
+      const [key, dir, label] = SORTS[m[1]]; out.sort = { key, dir }; out.sortLabel = label;
+    });
+
+    // --- month / day / year ---
+    take(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_RE}\\b`), (m) => {
+      const d = +m[1], mo = monthIndex(m[2]); if (d < 1 || d > 31) return false;
+      datePred((x) => +x.slice(5, 7) === mo && +x.slice(8, 10) === d, `${MONTH_NAMES[mo - 1]} ${d}`);
+    });
+    take(new RegExp(`\\b${MONTH_RE}\\.?(?:\\s+(\\d{1,2})(?:st|nd|rd|th)?(?!\\d))?\\b`), (m) => {
+      const mo = monthIndex(m[1]), d = m[2] ? +m[2] : 0;
+      if (d > 31) return false;
+      datePred((x) => +x.slice(5, 7) === mo && (!d || +x.slice(8, 10) === d), MONTH_NAMES[mo - 1] + (d ? " " + d : ""));
+    });
+    take(/\b(20[12]\d)\b/, (m) => datePred((d) => d.slice(0, 4) === m[1], "Year " + m[1]));
+
+    // --- whatever is left is free text (all words must match place / source / id) ---
+    const words = s.split(/\s+/).map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")).filter((w) => w && !STOP_WORDS.has(w));
+    out.terms = words;
+    words.forEach((w) => out.chips.push("“" + w + "”"));
+    out.active = !!(out.preds.length || out.terms.length || out.sort);
+    return out;
+  }
+
+  function renderSearchInfo() {
+    const hasInput = $("search").value.trim() !== "";
+    const pq = state.query;
+    $("searchExamples").hidden = hasInput;
+    if (!hasInput) { $("searchStatus").innerHTML = ""; $("searchChips").innerHTML = ""; return; }
+    if (!pq) { $("searchStatus").textContent = "Try a place, a magnitude (M5+), a year or a month."; $("searchChips").innerHTML = ""; return; }
+    const n = state.rows.length;
+    $("searchStatus").innerHTML = `<b>${n.toLocaleString()}</b> earthquake${n === 1 ? "" : "s"} found · searching the whole catalog (filters ignored) · <button type="button" id="searchClear">Clear</button>`;
+    const chips = pq.chips.slice();
+    if (pq.sort) chips.push("Sorted: " + pq.sortLabel);
+    $("searchChips").innerHTML = chips.map((c) => `<span class="chip">${esc(c)}</span>`).join("");
+  }
+
+  function fitSearch() {
+    if (!state.query || !state.rows.length) return;
+    if (state.rows.length === 1) return select(state.rows[0].id);
+    map.fitBounds(L.latLngBounds(state.rows.map((q) => [q.lat, q.lon])).pad(0.2), { maxZoom: 11 });
+  }
+
+  let searchTimer;
+  $("search").addEventListener("input", () => {
+    applyFilters();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(fitSearch, 450);
+  });
+  $("search").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault(); clearTimeout(searchTimer);
+    if (state.query && state.rows[0]) select(state.rows[0].id);
+  });
+  $("searchExamples").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-q]"); if (!b) return;
+    $("search").value = b.dataset.q; applyFilters(); fitSearch(); $("search").focus();
+  });
+  $("searchStatus").addEventListener("click", (e) => {
+    if (!e.target.closest("#searchClear")) return;
+    $("search").value = ""; applyFilters(); fitToData(); $("search").focus();
+  });
+
+  /* ---------------- Earthquake detail card ---------------- */
+  const MAG_NAME = (m) => magClass(m).label.split(" ").pop();
+  const fmtLat = (v) => Math.abs(v).toFixed(3) + "°" + (v >= 0 ? "N" : "S");
+  const fmtLon = (v) => Math.abs(v).toFixed(3) + "°" + (v >= 0 ? "E" : "W");
+
+  function ago(ms) {
+    const days = Math.floor((Date.now() - ms) / 86400e3);
+    if (days < 0) return "";
+    if (days < 1) return "today";
+    if (days < 30) return days + (days === 1 ? " day ago" : " days ago");
+    if (days < 365) { const m = Math.floor(days / 30); return m + (m === 1 ? " month ago" : " months ago"); }
+    const y = Math.floor(days / 365), m = Math.floor((days % 365) / 30);
+    return y + (y === 1 ? " year" : " years") + (m ? " " + m + " mo" : "") + " ago";
+  }
+  function diffLabel(dt) {
+    const a = Math.abs(dt);
+    const t = a < 3600e3 ? Math.max(1, Math.round(a / 60e3)) + " min" : a < 86400e3 ? Math.round(a / 3600e3) + " h" : (a / 86400e3).toFixed(1) + " days";
+    return t + (dt >= 0 ? " after" : " before");
+  }
+  function effectsText(m) {
+    if (m < 3) return "Usually not felt, or felt only by a few people close to the epicenter. Easily recorded by seismographs, but rarely noticed by most people.";
+    if (m < 4) return "Often felt by people nearby, especially indoors or on upper floors, as a brief tremor. Damage is rare.";
+    if (m < 5) return "Noticeable shaking indoors, with rattling objects and noises. Significant damage is unlikely, though weak or poorly built structures can crack.";
+    if (m < 6) return "Widely felt. Can damage poorly built or unreinforced structures near the epicenter; well-built buildings usually sustain little or no damage.";
+    if (m < 7) return "Can be destructive in populated areas within roughly 100 km of the epicenter, and is felt over a very wide region.";
+    return "A major earthquake capable of serious damage over large areas, felt hundreds of kilometers away.";
+  }
+  function depthText(d) {
+    if (d <= 10) return "Very shallow focus — surface shaking tends to be stronger than for a deeper quake of the same magnitude.";
+    if (d <= 30) return "Shallow focus — strong surface shaking is possible for its magnitude.";
+    if (d <= 50) return "Mid-depth focus — shaking is spread over a wider area and is somewhat weaker at the surface than a shallower quake of equal magnitude.";
+    return "Deeper focus (50–70 km) — the energy travels further before reaching the surface, so shaking is usually broader and milder than for a shallow quake of the same magnitude.";
+  }
+  // shortest distance (km) from a point to a [lat, lon] polyline
+  function distToPolyline(lat, lon, coords) {
+    const kx = 111.32 * Math.cos(lat * Math.PI / 180), ky = 110.574;
+    let best = Infinity;
+    for (let i = 1; i < coords.length; i++) {
+      const ax = (coords[i - 1][1] - lon) * kx, ay = (coords[i - 1][0] - lat) * ky;
+      const bx = (coords[i][1] - lon) * kx, by = (coords[i][0] - lat) * ky;
+      const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+      best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+    return best;
+  }
+  function nearestFault(q) {
+    let best = null;
+    currentFaults.forEach((f) => {
+      const km = distToPolyline(q.lat, q.lon, f.coords);
+      if (!best || km < best.km) best = { name: f.name, km };
+    });
+    return best;
+  }
+  function relatedEvents(q) {
+    const WIN = 7 * 86400e3, R = 50, out = [];
+    state.all.forEach((x) => {
+      if (x === q || Math.abs(x.time - q.time) > WIN) return;
+      const km = haversine(q.lat, q.lon, x.lat, x.lon);
+      if (km <= R) out.push({ q: x, km, dt: x.time - q.time });
+    });
+    return out.sort((a, b) => Math.abs(a.dt) - Math.abs(b.dt));
+  }
+  const dl = (rows) => `<dl class="dl">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+
+  function detailHTML(q) {
+    const mc = magClass(q.mag), fault = nearestFault(q), u = q.usgs;
+    const rank = 1 + state.all.reduce((n, x) => n + (x.mag > q.mag ? 1 : 0), 0);
+    const rel = relatedEvents(q), before = rel.filter((r) => r.dt < 0).length;
+    const age = ago(q.time);
+
+    const facts = [
+      ["Local time (PHT)", pht(q.time) + (q.approx ? " (approx.)" : "")],
+      ["UTC", new Date(q.time).toISOString().replace("T", " ").slice(0, 16)],
+      ["Epicenter", `${fmtLat(q.lat)}, ${fmtLon(q.lon)}`],
+      ["Focal depth", q.depth.toFixed(1) + " km"],
+      ["From " + esc(BAYUGAN.name), `${q.dist.toFixed(1)} km ${q.dir}`],
+      ["Hypocentral distance", "≈ " + Math.hypot(q.dist, q.depth).toFixed(0) + " km"],
+      ["Nearest fault trace", fault ? `${esc(fault.name)} · ≈ ${fault.km.toFixed(0)} km` : "—"],
+      ["Magnitude rank", `#${rank} of ${state.all.length.toLocaleString()}`],
+      ["Source", esc(q.source)],
+      ["Event ID", esc(q.id)]
+    ];
+
+    const usgs = [];
+    if (u) {
+      if (u.magType) usgs.push(["Magnitude type", esc(u.magType)]);
+      if (u.status) usgs.push(["Review status", esc(u.status)]);
+      if (u.felt != null) usgs.push(["“Did you feel it?” reports", String(u.felt)]);
+      if (u.cdi != null) usgs.push(["Max reported intensity (MMI)", Number(u.cdi).toFixed(1)]);
+      if (u.mmi != null) usgs.push(["ShakeMap max intensity (MMI)", Number(u.mmi).toFixed(1)]);
+      if (u.alert) usgs.push(["PAGER alert level", esc(u.alert)]);
+      if (u.tsunami != null) usgs.push(["Tsunami flag", u.tsunami ? "Flagged · oceanic region" : "Not flagged"]);
+      if (u.sig != null) usgs.push(["USGS significance", String(u.sig)]);
+      if (u.nst != null) usgs.push(["Stations used", String(u.nst)]);
+    }
+
+    const relHTML = rel.length
+      ? `<p>${rel.length} other event${rel.length === 1 ? "" : "s"} in this catalog (${before} before, ${rel.length - before} after) — possibly related foreshocks, aftershocks or swarm activity.</p>
+         <ul class="rel-list">${rel.slice(0, 6).map((r) => `<li><button type="button" data-go="${esc(r.q.id)}"><span><b>M${r.q.mag.toFixed(1)}</b> · ${diffLabel(r.dt)}</span><span>${r.km.toFixed(0)} km away</span></button></li>`).join("")}</ul>
+         ${rel.length > 6 ? `<p class="dt-flag">+ ${rel.length - 6} more not listed.</p>` : ""}`
+      : "<p>No other events in this catalog within 50 km and ±7 days.</p>";
+
+    const url = q.url && /^https?:\/\//.test(q.url) ? q.url : null;
+    return `
+      <div class="dt-head">
+        <div class="dt-mag" style="--c:${mc.color}"><b>${q.mag.toFixed(1)}</b><span>${MAG_NAME(q.mag)}</span></div>
+        <div class="dt-title">
+          <h3>${esc(q.place || q.rel)}</h3>
+          <p>${pht(q.time)}${q.approx ? " (approx.)" : ""}${age ? " · " + age : ""}</p>
+          <p>${esc(q.rel)}</p>
+        </div>
+      </div>
+      <div class="dt-sec"><h4>Details</h4>${dl(facts)}
+        <p class="dt-flag">Fault distance uses the schematic traces drawn on the map — treat it as approximate.</p>
+        ${q.demo ? '<p class="dt-flag">Synthetic demo event — not a real earthquake.</p>' : ""}
+        ${q.approx ? '<p class="dt-flag">Epicenter position and time-of-day are approximate (press-reported).</p>' : ""}
+      </div>
+      ${usgs.length ? `<div class="dt-sec"><h4>USGS record</h4>${dl(usgs)}${u.tsunami ? '<p class="dt-flag">The tsunami flag only marks events in oceanic regions; it is not a tsunami warning.</p>' : ""}</div>` : ""}
+      <div class="dt-sec"><h4>What a M${q.mag.toFixed(1)} usually means</h4>
+        <p>${effectsText(q.mag)}</p>
+        <p>${depthText(q.depth)}</p>
+        <p class="dt-flag">General guide only. Each whole-number step in magnitude is ≈10× the ground motion and ≈32× the energy. Actual shaking depends on distance, depth, soil and building quality.</p>
+      </div>
+      <div class="dt-sec"><h4>Nearby events · ±7 days, within 50 km</h4>${relHTML}</div>
+      <div class="dt-actions">
+        <button type="button" class="ghost small" data-act="center">⌖ Center on map</button>
+        <button type="button" class="ghost small" data-act="copy">⧉ Copy summary</button>
+        ${url ? `<a class="ghost small" href="${esc(url)}" target="_blank" rel="noopener">USGS event page ↗</a>` : ""}
+      </div>`;
+  }
+
+  function showDetail(q) {
+    $("detailBody").innerHTML = detailHTML(q);
+    $("detail").hidden = false;
+    $("detail").scrollTop = 0;
+  }
+  function closeDetail() {
+    $("detail").hidden = true;
+    state.selectedId = null;
+    document.querySelectorAll(".row-q.active").forEach((el) => el.classList.remove("active"));
+    document.querySelectorAll(".quake.selected").forEach((el) => el.classList.remove("selected"));
+  }
+  function copySummary(q) {
+    const text = [
+      `M${q.mag.toFixed(1)} earthquake — ${q.place || q.rel}`,
+      `Time: ${pht(q.time)} PHT (${new Date(q.time).toISOString().slice(0, 16).replace("T", " ")} UTC)`,
+      `Epicenter: ${fmtLat(q.lat)}, ${fmtLon(q.lon)}`,
+      `Depth: ${q.depth.toFixed(1)} km`,
+      `From ${BAYUGAN.name}: ${q.dist.toFixed(1)} km ${q.dir}`,
+      `Source: ${q.source}`
+    ].join("\n");
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .then(() => toast("Summary copied to clipboard"), () => toast("Couldn't copy automatically."));
+  }
+  $("detailClose").addEventListener("click", closeDetail);
+  $("detailBody").addEventListener("click", (e) => {
+    const go = e.target.closest("[data-go]"); if (go) return select(go.dataset.go);
+    const act = e.target.closest("[data-act]"); if (!act) return;
+    const q = state.byId.get(state.selectedId); if (!q) return;
+    if (act.dataset.act === "center") map.flyTo([q.lat, q.lon], Math.max(map.getZoom(), 11), { duration: 0.8 });
+    if (act.dataset.act === "copy") copySummary(q);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (document.activeElement === $("search") && $("search").value) { $("search").value = ""; applyFilters(); }
+    else closeDetail();
+  });
+
+  /* ---------------- UI wiring ---------------- */
+  ["dateFrom", "dateTo", "minMag", "maxDepth", "radius", "source"].forEach((id) =>
+    $(id).addEventListener("input", applyFilters));
+  $("resetFilters").addEventListener("click", () => {
+    $("dateFrom").value = STUDY.start; $("dateTo").value = STUDY.end;
+    $("minMag").value = 2; $("maxDepth").value = 70; $("radius").value = 150;
+    $("source").value = ""; $("search").value = ""; applyFilters();
+  });
+  $("reload").addEventListener("click", loadData);
+
+  $("cbDepth").addEventListener("click", () => setColorBy("depth"));
+  $("cbMag").addEventListener("click", () => setColorBy("mag"));
+  function setColorBy(k) {
+    state.colorBy = k;
+    $("cbDepth").classList.toggle("active", k === "depth");
+    $("cbMag").classList.toggle("active", k === "mag");
+    renderMarkers(); buildLegend();
+  }
+
+  document.querySelectorAll(".qtable th").forEach((th) => th.addEventListener("click", () => {
+    const k = th.dataset.key;
+    if (state.query) state.query.sort = null;
+    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : -1 };
+    sortRows(); renderTable(); renderSearchInfo();
+  }));
+  $("tbody").addEventListener("click", (e) => { const r = e.target.closest(".row-q"); if (r) select(r.dataset.id); });
+  $("tbody").addEventListener("keydown", (e) => { if (e.key === "Enter") { const r = e.target.closest(".row-q"); if (r) select(r.dataset.id); } });
+
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
+    document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === "panel-" + t.dataset.tab));
+  }));
+
+  $("sideToggle").addEventListener("click", () => {
+    if (MOBILE()) $("sidebar").classList.toggle("open");
+    else { $("app").classList.toggle("collapsed"); setTimeout(() => map.invalidateSize(), 320); }
+  });
+  $("btnHome").addEventListener("click", () => map.flyTo([BAYUGAN.lat, BAYUGAN.lon], 11, { duration: 0.9 }));
+  $("btnFaults").addEventListener("click", () => {
+    if (faultShapes.length) map.fitBounds(L.featureGroup(faultShapes).getBounds().pad(0.15));
+  });
+  $("legendToggle").addEventListener("click", () => {
+    const lg = $("legend"); lg.classList.toggle("collapsed");
+    $("legendToggle").textContent = lg.classList.contains("collapsed") ? "Legend ▸" : "Legend ▾";
+  });
+  map.on("click", () => { if (MOBILE()) $("sidebar").classList.remove("open"); });
+  if (MOBILE()) { $("legend").classList.add("collapsed"); $("legendToggle").textContent = "Legend ▸"; }
+  window.addEventListener("resize", () => map.invalidateSize());
+
+  buildLegend();
+  loadData();
+})();
+
+</script>
+</body>
+</html>
