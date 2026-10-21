@@ -246,6 +246,21 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .detail { animation: none; } }
 
 
+/* ---------- Research pipeline + dashboard ---------- */
+.about input[type=number],.about input[type=text]{width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13px;color-scheme:dark}
+.about .row{margin-bottom:8px}.about .btns{margin:8px 0}
+.warn{margin:8px 0;padding:8px 10px;font-size:12px;line-height:1.45;border-radius:8px;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.4);color:#fecdd3}
+.ok{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.4);color:#bbf7d0}
+.cnt{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:8px 0}
+.qlist{max-height:240px;overflow-y:auto;font-size:12px}.qlist div{display:flex;justify-content:space-between;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}
+
+/* ---------- Phone mode (performance) ---------- */
+body.lite .side-toggle, body.lite .map-controls button, body.lite .legend, body.lite .legend-toggle, body.lite .detail, body.lite .leaflet-bar a, body.lite .toast { backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+body.lite .brand-mark span { animation: none; }
+body.lite .quake .ring { display: none !important; }
+body.lite .sidebar { transition: none; }
+.north{position:absolute;right:14px;bottom:80px;z-index:900;text-align:center;font:700 12px/1 Inter,sans-serif;background:rgba(17,26,46,.85);border:1px solid var(--border);border-radius:8px;padding:6px 8px;pointer-events:none}
+@media print{.sidebar,.side-toggle,.map-controls,.detail,.toast,.leaflet-control-zoom,.leaflet-control-layers{display:none!important}body{overflow:visible}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.map-wrap::before{content:"Bayugan Seismic Atlas · Source: USGS catalog · M≥2.0, depth 0–70 km";position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1200;background:#fff;color:#000;padding:4px 10px;font:600 13px sans-serif}}
 </style>
 </head>
 <body>
@@ -265,6 +280,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
     <nav class="tabs" role="tablist">
       <button class="tab active" data-tab="quakes" role="tab">Earthquakes</button>
+      <button class="tab" data-tab="tools" role="tab">Tools</button>
       <button class="tab" data-tab="brgys" role="tab">Barangays</button>
       <button class="tab" data-tab="about" role="tab">About</button>
     </nav>
@@ -309,8 +325,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
           </div>
         </div>
         <div class="row">
-          <label for="minMag">Minimum magnitude <b id="minMagVal">2.0</b></label>
-          <input type="range" id="minMag" min="2" max="7" step="0.1" value="2" />
+          <label for="minMag">Minimum magnitude <b id="minMagVal">5.0</b></label>
+          <input type="range" id="minMag" min="2" max="7" step="0.1" value="5" />
         </div>
         <div class="row">
           <label for="maxDepth">Maximum focal depth <b id="maxDepthVal">70 km</b></label>
@@ -366,6 +382,48 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       <p class="tnote" id="tnote"></p>
     </section>
 
+    <!-- ---- TAB: DATA (USGS retrieval + validation) ---- -->
+    <section class="panel" id="panel-data">
+      <div class="about">
+        <h3>1 · Study area</h3>
+        <div class="row"><select id="aMode"><option value="poly">Bayugan boundary file + buffer</option><option value="bbox">Custom bounding box (exploratory)</option><option value="circle">Radius from city center (exploratory)</option></select></div>
+        <div id="aPoly">
+          <div class="btns"><button id="aLoad" class="ghost small">Load data/bayugan_barangays.geojson</button><label class="ghost small filebtn">Upload boundary<input type="file" id="aFile" accept=".geojson,.json" hidden /></label></div>
+          <div class="row"><label for="aBuf">Buffer distance (km) from your methodology</label><input type="number" id="aBuf" min="0" step="0.1" placeholder="required — 0 = no buffer" /></div>
+        </div>
+        <div id="aBox" hidden><div class="grid2"><input type="number" id="bS" placeholder="South lat" step="any"><input type="number" id="bN" placeholder="North lat" step="any"><input type="number" id="bW" placeholder="West lon" step="any"><input type="number" id="bE" placeholder="East lon" step="any"></div></div>
+        <div id="aCir" hidden><input type="number" id="cR" min="1" step="1" placeholder="Radius km around city center" /></div>
+        <p class="muted" id="aStat">No study area defined. No boundary or buffer is assumed.</p>
+        <h3>2 · USGS query</h3>
+        <div class="grid2"><div class="row"><label>From (UTC)</label><input type="date" id="qFrom" value="2015-01-01"></div><div class="row"><label>To (UTC)</label><input type="date" id="qTo" value="2025-12-31"></div></div>
+        <div class="grid2"><div class="row"><label>Min magnitude</label><input type="number" id="qMag" value="2.0" step="0.1" min="0"></div><div class="row"><label>Max depth (km)</label><input type="number" id="qDep" value="70" step="1" min="0"></div></div>
+        <div class="btns"><button id="btnFetch" class="ghost">⭳ Retrieve from USGS</button><button id="btnCsv" class="ghost">⭳ Validated CSV</button></div>
+        <div class="muted" id="fStat">Not yet retrieved.</div>
+        <h3>3 · Validation &amp; review</h3>
+        <div class="cnt" id="vCounts"></div>
+        <div id="vWarn"></div>
+        <div class="btns" id="vBulk"></div>
+        <div class="qlist" id="vList"></div>
+        <details><summary class="muted">Cleaning log</summary><ul id="vLog" class="muted"></ul></details>
+        <p class="muted">Source: USGS FDSN Event API. Original download is kept unchanged; cleaning only includes/excludes records and never edits values.</p>
+      </div>
+    </section>
+
+    <!-- ---- TAB: TOOLS ---- -->
+    <section class="panel" id="panel-tools"><div class="about">
+      <h3>Density heat map</h3>
+      <label class="ghost small filebtn"><input type="checkbox" id="tHeat"> Show kernel density layer</label>
+      <div class="row" style="margin-top:8px"><label>Radius (px) <b id="tHeatRV">25</b></label><input type="range" id="tHeatR" min="10" max="60" value="25"></div>
+      <h3>Clusters (DBSCAN)</h3>
+      <div class="grid2"><div class="row"><label for="tEps">Distance (km)</label><input type="number" id="tEps" min="0.5" step="0.5" placeholder="required"></div><div class="row"><label for="tMin">Min. events</label><input type="number" id="tMin" min="2" placeholder="required"></div></div>
+      <div class="btns"><button id="tClu" class="ghost small">Find clusters</button><button id="tCluOff" class="ghost small">Clear</button></div><p class="muted" id="tCluS"></p>
+      <h3>Timeline</h3>
+      <input type="range" id="tTime" min="2015" max="2025" value="2025">
+      <div class="btns"><button id="tPlay" class="ghost small">▶ Play</button><button id="tTimeOff" class="ghost small">Show all years</button></div><p class="muted" id="tTimeS">Showing all years.</p>
+      <h3>Share &amp; export</h3>
+      <div class="btns"><button id="tLink" class="ghost small">Copy link</button><button id="tGj" class="ghost small">⭳ GeoJSON</button><button id="tPrint" class="ghost small">🖨 Print</button></div>
+    </div></section>
+
     <!-- ---- TAB: BARANGAYS ---- -->
     <section class="panel" id="panel-brgys">
       <div class="info-card">
@@ -415,6 +473,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     <div class="map-controls">
       <button id="btnHome" title="Recenter on Bayugan City">⌖ Bayugan</button>
       <button id="btnFaults" title="Zoom to fault segments">⟋ Faults</button>
+      <button id="btnMode" title="Switch between Phone mode (faster) and PC mode (full effects)">📱 Phone</button>
     </div>
 
     <div class="legend" id="legend">
@@ -441,11 +500,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
       <div id="detailBody"></div>
     </aside>
 
+    <div class="north" aria-hidden="true">▲<br>N</div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </main>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script>
 /* ===== Static reference data: city, 43 barangays, fault segments ===== */
 
@@ -603,8 +664,8 @@ const FAULTS = [
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const MAX_MARKERS = 1500;     // draw at most this many markers (strongest first)
-  const PULSE_ALL_LIMIT = 400;  // above this many events, only M>=4 pulse
+  let MAX_MARKERS = 1500;     // draw at most this many markers (strongest first)
+  let PULSE_ALL_LIMIT = 400;  // above this many events, only M>=4 pulse
   const MOBILE = () => window.innerWidth <= 860;
 
   const state = {
@@ -624,12 +685,10 @@ const FAULTS = [
   const map = L.map("map", { zoomControl: false }).setView([BAYUGAN.lat, BAYUGAN.lon], 10);
   L.control.zoom({ position: "topright" }).addTo(map);
   const base = {
-    "Dark": L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { attribution: "&copy; OpenStreetMap &copy; CARTO", maxZoom: 19, subdomains: "abcd" }),
-    "Light": L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { attribution: "&copy; OpenStreetMap &copy; CARTO", maxZoom: 19, subdomains: "abcd" }),
     "Terrain": L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap", maxZoom: 17 }),
     "Satellite": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri", maxZoom: 18 })
   };
-  base.Dark.addTo(map);
+  base.Terrain.addTo(map);
 
   const faultLayer = L.layerGroup().addTo(map);
   const cityLayer = L.layerGroup().addTo(map);
@@ -746,7 +805,7 @@ const FAULTS = [
           coords: ln.map(([lon, lat]) => [lat, lon]), note: "Loaded from data/faults.geojson."
         }));
       });
-      if (faults.length) { drawFaults(faults); toast("Loaded official fault traces from data/faults.geojson"); }
+      if (faults.length) { FV.on = true; drawFaults(faults); toast("Loaded official fault traces from data/faults.geojson"); }
     } catch (_) { /* file not present — keep schematic traces */ }
   }
   drawFaults(FAULTS);
@@ -946,8 +1005,8 @@ const FAULTS = [
     } else {
       state.rows = state.all.filter((q) => {
         const d = phtDate(q.time);
-        return d >= from && d <= to && q.mag >= minMag && q.depth <= maxDepth && q.dist <= radius &&
-          (!src || q.source === src);
+        return d >= from && d <= to && q.mag >= minMag && q.depth <= maxDepth && (state.pipeline || q.dist <= radius) &&
+          (!src || q.source === src) && (state.tYear == null || +d.slice(0, 4) <= state.tYear);
       });
     }
     renderSearchInfo();
@@ -964,6 +1023,7 @@ const FAULTS = [
 
   function render() {
     renderStats(); renderMarkers(); renderTable(); buildLegend();
+    if (typeof refreshOverlays === "function") refreshOverlays();
   }
   function renderStats() {
     const r = state.rows;
@@ -979,6 +1039,11 @@ const FAULTS = [
     const pulseAll = state.rows.length <= PULSE_ALL_LIMIT;
     drawn.forEach((q) => {
       const size = magClass(q.mag).size;
+      if (state.lite) {
+        const cm = L.circleMarker([q.lat, q.lon], { renderer: canvasR, radius: Math.max(3, size / 2.4), color: "#fff", weight: q.id === state.selectedId ? 3 : 1, fillColor: colorOf(q), fillOpacity: 0.85 })
+          .on("click", () => select(q.id, false));
+        cm.addTo(quakeLayer); state.markers.set(q.id, cm); return;
+      }
       const pulse = pulseAll || q.mag >= 4;
       const icon = L.divIcon({
         className: "quake-icon",
@@ -995,7 +1060,7 @@ const FAULTS = [
   }
 
   function renderTable() {
-    const rows = state.rows, MAXROWS = 300;
+    const rows = state.rows, MAXROWS = state.lite ? 100 : 300;
     if (!rows.length) {
       $("tbody").innerHTML = '<tr><td colspan="4" class="empty">No earthquakes match ' + (state.query ? "your search" : "these filters") + '.</td></tr>';
       $("tnote").textContent = ""; return;
@@ -1019,6 +1084,7 @@ const FAULTS = [
     showDetail(q);
     const m = state.markers.get(id);
     m?.getElement()?.querySelector(".quake")?.classList.add("selected");
+    if (state.lite && m && m.setStyle) { state.markers.forEach((x) => x.setStyle && x.setStyle({ weight: 1 })); m.setStyle({ weight: 3 }); m.bringToFront(); }
     if (fly) {
       map.flyTo(m ? m.getLatLng() : [q.lat, q.lon], Math.max(map.getZoom(), 11), { duration: 0.8 });
       if (MOBILE()) $("sidebar").classList.remove("open");
@@ -1026,6 +1092,7 @@ const FAULTS = [
   }
 
   function fitToData() {
+    if (state.keepView) { state.keepView = false; return; }
     const pts = state.rows.map((q) => [q.lat, q.lon]);
     pts.push([BAYUGAN.lat, BAYUGAN.lon]);
     if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.1), { maxZoom: 10 });
@@ -1359,7 +1426,7 @@ const FAULTS = [
     $(id).addEventListener("input", applyFilters));
   $("resetFilters").addEventListener("click", () => {
     $("dateFrom").value = STUDY.start; $("dateTo").value = STUDY.end;
-    $("minMag").value = 2; $("maxDepth").value = 70; $("radius").value = 150;
+    $("minMag").value = 5; $("maxDepth").value = 70; $("radius").value = 150;
     $("source").value = ""; $("search").value = ""; applyFilters();
   });
   $("reload").addEventListener("click", loadData);
@@ -1402,6 +1469,289 @@ const FAULTS = [
   map.on("click", () => { if (MOBILE()) $("sidebar").classList.remove("open"); });
   if (MOBILE()) { $("legend").classList.add("collapsed"); $("legendToggle").textContent = "Legend ▸"; }
   window.addEventListener("resize", () => map.invalidateSize());
+
+  /* =====================================================================
+   * RESEARCH PIPELINE: (1) USGS retrieval → (2) validation → (3) analysis
+   * All three use the same dataset: P.raw → P.ready → state.all/state.rows.
+   * ===================================================================== */
+  const P = { raw: [], meta: null, flags: new Map(), dec: new Map(), log: [], A: null, ready: [] };
+  const FV = { on: false }; // true only when faults were loaded from data/faults.geojson
+  const num = (id) => { const v = $(id).value; return v === "" ? NaN : +v; };
+
+  /* ---- WGS84 <-> UTM zone 51N (EPSG:32651), central meridian 123°E ---- */
+  const E2 = 0.0066943799901413165, EP2 = E2 / (1 - E2), RA = 6378137, K0 = 0.9996;
+  function toUTM(lat, lon) {
+    const f = lat * Math.PI / 180, l = (lon - 123) * Math.PI / 180, s = Math.sin(f), c = Math.cos(f), t = Math.tan(f);
+    const N = RA / Math.sqrt(1 - E2 * s * s), T = t * t, C = EP2 * c * c, A = l * c, e4 = E2 * E2, e6 = e4 * E2;
+    const M = RA * ((1 - E2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * f - (3 * E2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * f) + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * f) - (35 * e6 / 3072) * Math.sin(6 * f));
+    return [K0 * N * (A + (1 - T + C) * A ** 3 / 6 + (5 - 18 * T + T * T + 72 * C - 58 * EP2) * A ** 5 / 120) + 500000,
+      K0 * (M + N * t * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * A ** 4 / 24 + (61 - 58 * T + T * T + 600 * C - 330 * EP2) * A ** 6 / 720))];
+  }
+  function fromUTM(x, y) {
+    const e1 = (1 - Math.sqrt(1 - E2)) / (1 + Math.sqrt(1 - E2)), mu = (y / K0) / (RA * (1 - E2 / 4 - 3 * E2 * E2 / 64 - 5 * E2 ** 3 / 256));
+    const p = mu + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * Math.sin(2 * mu) + (21 * e1 * e1 / 16 - 55 * e1 ** 4 / 32) * Math.sin(4 * mu) + (151 * e1 ** 3 / 96) * Math.sin(6 * mu);
+    const s = Math.sin(p), c = Math.cos(p), t = Math.tan(p), N1 = RA / Math.sqrt(1 - E2 * s * s), T1 = t * t, C1 = EP2 * c * c, R1 = RA * (1 - E2) / Math.pow(1 - E2 * s * s, 1.5), D = (x - 500000) / (N1 * K0);
+    const lat = p - (N1 * t / R1) * (D * D / 2 - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * EP2) * D ** 4 / 24 + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * EP2 - 3 * C1 * C1) * D ** 6 / 720);
+    const lon = (D - (1 + 2 * T1 + C1) * D ** 3 / 6 + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * EP2 + 24 * T1 * T1) * D ** 5 / 120) / c;
+    return [lat * 180 / Math.PI, 123 + lon * 180 / Math.PI];
+  }
+  window.__geo = { toUTM, fromUTM }; // exposed for testing
+
+  /* ---- Study area ---- */
+  let POLY = null, POLYLL = null; // POLY: array of polygons, each an array of UTM rings
+  function loadBoundary(gj, label) {
+    const polys = []; let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180;
+    const add = (rings) => polys.push(rings.map((r) => r.map(([lo, la]) => { la0 = Math.min(la0, la); la1 = Math.max(la1, la); lo0 = Math.min(lo0, lo); lo1 = Math.max(lo1, lo); return toUTM(la, lo); })));
+    (gj.features || [gj]).forEach((f) => { const g = f.geometry || f; if (!g) return; if (g.type === "Polygon") add(g.coordinates); else if (g.type === "MultiPolygon") g.coordinates.forEach(add); });
+    if (!polys.length) throw new Error("No Polygon/MultiPolygon features found.");
+    POLY = polys; POLYLL = [la0, lo0, la1, lo1];
+    $("aStat").textContent = `Boundary loaded: ${label} (${polys.length} polygon${polys.length > 1 ? "s" : ""}).`;
+  }
+  $("aLoad").addEventListener("click", async () => {
+    try { const r = await fetch("data/bayugan_barangays.geojson", { cache: "no-store" }); if (!r.ok) throw new Error("file not found (HTTP " + r.status + ")"); loadBoundary(await r.json(), "data/bayugan_barangays.geojson"); }
+    catch (e) { toast("Could not load boundary: " + e.message); }
+  });
+  $("aFile").addEventListener("change", async (e) => { const f = e.target.files[0]; if (!f) return; try { loadBoundary(JSON.parse(await f.text()), f.name); } catch (er) { toast("Boundary error: " + er.message); } e.target.value = ""; });
+  $("aMode").addEventListener("change", () => { const m = $("aMode").value; $("aPoly").hidden = m !== "poly"; $("aBox").hidden = m !== "bbox"; $("aCir").hidden = m !== "circle"; });
+
+  const inRing = (r, x, y) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[i], b = r[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  function dSeg(x, y, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l = dx * dx + dy * dy, t = l ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / l)) : 0; const px = a[0] + t * dx, py = a[1] + t * dy; return [Math.hypot(x - px, y - py), px, py]; }
+
+  /* Returns {err} or {label, testUTM, ub:[x0,y0,x1,y1], q:{USGS query params}, areaKm2()} */
+  function getArea() {
+    const m = $("aMode").value;
+    if (m === "poly") {
+      const b = num("aBuf");
+      if (!POLY) return { err: "Load the Bayugan boundary GeoJSON first." };
+      if (!(b >= 0)) return { err: "Enter the buffer distance (km) defined in your methodology (0 = none). No default is assumed." };
+      let X0 = 1e12, Y0 = 1e12, X1 = -1e12, Y1 = -1e12; const B = b * 1000;
+      POLY.forEach((p) => p.forEach((r) => r.forEach(([x, y]) => { X0 = Math.min(X0, x); X1 = Math.max(X1, x); Y0 = Math.min(Y0, y); Y1 = Math.max(Y1, y); })));
+      const testUTM = (x, y) => {
+        if (x < X0 - B || x > X1 + B || y < Y0 - B || y > Y1 + B) return false;
+        if (POLY.some((p) => p.reduce((c, r) => c !== inRing(r, x, y), false))) return true;
+        if (!B) return false;
+        for (const p of POLY) for (const r of p) for (let i = 1; i < r.length; i++) if (dSeg(x, y, r[i - 1], r[i])[0] <= B) return true;
+        return false;
+      };
+      const dLat = b / 110.5 + 0.01, dLon = b / (111.3 * Math.cos(POLYLL[0] * Math.PI / 180)) + 0.01;
+      return { label: `Boundary file + ${b} km buffer (EPSG:32651 distances)`, testUTM, ub: [X0 - B, Y0 - B, X1 + B, Y1 + B],
+        q: { minlatitude: POLYLL[0] - dLat, maxlatitude: POLYLL[2] + dLat, minlongitude: POLYLL[1] - dLon, maxlongitude: POLYLL[3] + dLon } };
+    }
+    if (m === "bbox") {
+      const s = num("bS"), n = num("bN"), w = num("bW"), e = num("bE");
+      if (![s, n, w, e].every(Number.isFinite) || s >= n || w >= e) return { err: "Enter a valid bounding box (S < N, W < E)." };
+      const c = [toUTM(s, w), toUTM(s, e), toUTM(n, w), toUTM(n, e)];
+      return { label: `Custom bounding box S${s} N${n} W${w} E${e} (exploratory)`, testUTM: (x, y) => { const [la, lo] = fromUTM(x, y); return la >= s && la <= n && lo >= w && lo <= e; },
+        ub: [Math.min(...c.map((v) => v[0])), Math.min(...c.map((v) => v[1])), Math.max(...c.map((v) => v[0])), Math.max(...c.map((v) => v[1]))],
+        q: { minlatitude: s, maxlatitude: n, minlongitude: w, maxlongitude: e } };
+    }
+    const r = num("cR");
+    if (!(r > 0)) return { err: "Enter a radius in km." };
+    const [cx, cy] = toUTM(BAYUGAN.lat, BAYUGAN.lon);
+    return { label: `${r} km radius around city center (exploratory, not the study boundary)`, circleKm2: Math.PI * r * r,
+      testUTM: (x, y) => { const [la, lo] = fromUTM(x, y); return haversine(BAYUGAN.lat, BAYUGAN.lon, la, lo) <= r; },
+      ub: [cx - r * 1100, cy - r * 1100, cx + r * 1100, cy + r * 1100], q: { latitude: BAYUGAN.lat, longitude: BAYUGAN.lon, maxradiuskm: r } };
+  }
+  function areaKm2(A) { // grid estimate on a projected plane (exact π r² for circles)
+    if (A.circleKm2) return A.circleKm2;
+    const [x0, y0, x1, y1] = A.ub, st = Math.max(500, Math.sqrt((x1 - x0) * (y1 - y0) / 60000)); let n = 0;
+    for (let x = x0 + st / 2; x < x1; x += st) for (let y = y0 + st / 2; y < y1; y += st) if (A.testUTM(x, y)) n++;
+    return n * st * st / 1e6;
+  }
+
+  /* ---- Feature 1: USGS retrieval ---- */
+  async function fetchJSON(url, tries = 3) {
+    for (let i = 1; i <= tries; i++) {
+      const c = new AbortController(), t = setTimeout(() => c.abort(), 30000);
+      try { const r = await fetch(url, { signal: c.signal }); if (r.status === 204) return null; if (!r.ok) throw new Error("HTTP " + r.status); return await r.json(); }
+      catch (e) { if (i === tries) throw e; await new Promise((ok) => setTimeout(ok, 1500 * i)); }
+      finally { clearTimeout(t); }
+    }
+  }
+  const USGS = "https://earthquake.usgs.gov/fdsnws/event/1/";
+  async function retrieve() {
+    const A = getArea(); if (A.err) return toast(A.err);
+    const from = $("qFrom").value, to = $("qTo").value, mag = num("qMag"), dep = num("qDep");
+    if (!from || !to || from > to || !Number.isFinite(mag) || !Number.isFinite(dep)) return toast("Check the date range, magnitude and depth.");
+    const end = new Date(Date.parse(to) + 86400e3).toISOString().slice(0, 10);
+    const qs = new URLSearchParams({ eventtype: "earthquake", starttime: from, endtime: end, minmagnitude: mag, maxdepth: dep, ...A.q });
+    const LIMIT = 20000, log = [], raw = new Map(); let fetched = 0, dups = 0, expected = null, incomplete = false, err = null;
+    $("btnFetch").disabled = true; $("fStat").textContent = "Contacting USGS…";
+    try {
+      try { const c = await fetchJSON(`${USGS}count?format=geojson&${qs}`); expected = c && typeof c.count === "number" ? c.count : null; } catch (_) { log.push("Count request failed; completeness cannot be verified."); }
+      for (let off = 1; ; off += LIMIT) {
+        $("fStat").textContent = `Downloading… ${fetched.toLocaleString()}${expected != null ? " of " + expected.toLocaleString() : ""} records`;
+        const gj = await fetchJSON(`${USGS}query?format=geojson&orderby=time-asc&limit=${LIMIT}&offset=${off}&${qs}`);
+        const feats = gj ? gj.features : [];
+        feats.forEach((f) => {
+          fetched++; const p = f.properties || {}, c = (f.geometry && f.geometry.coordinates) || [];
+          if (raw.has(f.id)) { dups++; return; }
+          raw.set(f.id, { id: f.id, time: p.time, lat: c[1] ?? null, lon: c[0] ?? null, depth: c[2] ?? null, mag: p.mag ?? null, magType: p.magType || "", place: p.place || "", url: p.url || "", net: p.net || "", status: p.status || "" });
+        });
+        if (feats.length < LIMIT) break;
+      }
+    } catch (e) { err = e.message; incomplete = true; }
+    $("btnFetch").disabled = false;
+    if (expected != null && fetched < expected) incomplete = true;
+    P.raw = [...raw.values()]; P.A = A; P.dec = new Map(); P.log = log;
+    P.meta = { at: new Date(), fetched, dups, expected, incomplete, err, from, to, mag, dep, area: A.label, url: `${USGS}query?${qs}` };
+    log.push(`Downloaded ${fetched} records; ${dups} repeated event IDs dropped (kept first occurrence); ${P.raw.length} unique records stored unchanged.`);
+    validate(); applyPipeline();
+    $("fStat").innerHTML = `Retrieved <b>${P.raw.length.toLocaleString()}</b> unique records (${fetched} downloaded) at ${esc(pht(P.meta.at.getTime()))} PHT.<br>Source: USGS FDSN Event API · ${esc(from)} to ${esc(to)} (UTC) · M≥${mag} · depth ≤${dep} km · ${esc(A.label)}.` +
+      (err ? `<br>⚠ Download interrupted: ${esc(err)}. Data are partial.` : expected != null ? `<br>USGS count check: ${expected.toLocaleString()} expected.` : "");
+  }
+  $("btnFetch").addEventListener("click", retrieve);
+
+  /* ---- Feature 2: validation ---- */
+  const BLOCK = new Set(["missing coordinates", "invalid coordinates", "missing magnitude", "missing depth"]);
+  function validate() {
+    P.flags = new Map(); const m = P.meta;
+    P.raw.forEach((r) => {
+      const t = [], has = (v) => v !== null && v !== undefined && v !== "" && Number.isFinite(+v);
+      if (!has(r.lat) || !has(r.lon)) t.push("missing coordinates");
+      else if (+r.lat < -90 || +r.lat > 90 || +r.lon < -180 || +r.lon > 180) t.push("invalid coordinates");
+      else if (P.A && !P.A.testUTM(...toUTM(+r.lat, +r.lon))) t.push("outside study area");
+      if (!has(r.mag)) t.push("missing magnitude"); else if (+r.mag < m.mag) t.push("below minimum magnitude");
+      if (!has(r.depth)) t.push("missing depth"); else if (+r.depth < 0 || +r.depth > m.dep) t.push("depth outside range");
+      if (!Number.isFinite(r.time)) t.push("invalid time");
+      if (t.length) P.flags.set(r.id, t);
+    });
+    P.log = P.log.slice(0, 1).concat([
+      `Checked ${P.raw.length} records for missing/invalid coordinates, missing magnitude/depth, study-area membership, magnitude/depth criteria.`,
+      `${P.flags.size} record(s) flagged. Nothing is deleted automatically; blocking flags are provisionally left out of analysis until you approve exclusion.`,
+      "No scientific values (coordinates, magnitude, depth, time) were modified."]);
+    computeReady();
+  }
+  const isBlocking = (id) => (P.flags.get(id) || []).some((x) => BLOCK.has(x) || x === "invalid time");
+  function computeReady() {
+    P.ready = P.raw.filter((r) => { if (!P.flags.has(r.id)) return true; if (isBlocking(r.id)) return false; return P.dec.get(r.id) !== "exclude"; });
+    renderQuality();
+  }
+  function renderQuality() {
+    const m = P.meta; if (!m) return;
+    const flagged = P.flags.size, unres = [...P.flags.keys()].filter((id) => !P.dec.has(id)).length;
+    const c = [["Original", m.fetched], ["Valid", P.raw.length - flagged], ["Duplicates", m.dups], ["Flagged", flagged], ["Ready", P.ready.length]];
+    $("vCounts").innerHTML = c.map(([k, v]) => `<div class="stat"><span>${v.toLocaleString()}</span><label>${k}</label></div>`).join("");
+    const w = [];
+    if (m.incomplete) w.push("Dataset may be INCOMPLETE" + (m.err ? " (download error)" : " (fewer records than the USGS count)") + ". Do not treat results as final.");
+    if (unres) w.push(`${unres} flagged record(s) unresolved. Blocking ones are left out of analysis; others are still included until you approve exclusion.`);
+    $("vWarn").innerHTML = w.length ? `<div class="warn">⚠ ${w.map(esc).join("<br>⚠ ")}</div>` : '<div class="warn ok">No unresolved issues. Completeness still depends on USGS coverage for small events (M&lt;4), which is not verified here.</div>';
+    const ids = [...P.flags.keys()], types = [...new Set(ids.flatMap((i) => P.flags.get(i)))];
+    $("vBulk").innerHTML = types.map((t) => `<button class="ghost small" data-bulk="${esc(t)}">Exclude all: ${esc(t)}</button>`).join("");
+    $("vList").innerHTML = ids.slice(0, 150).map((id) => { const d = P.dec.get(id);
+      return `<div><span>${esc(id)}<span class="sub">${esc(P.flags.get(id).join(", "))}${d ? " · " + (d === "exclude" ? "excluded" : "kept") : " · pending"}</span></span><span><button class="ghost small" data-x="${esc(id)}">Exclude</button> <button class="ghost small" data-k="${esc(id)}" ${isBlocking(id) ? "disabled" : ""}>Keep</button></span></div>`; }).join("") +
+      (ids.length > 150 ? `<p class="muted">+ ${ids.length - 150} more — use the bulk buttons.</p>` : "");
+    $("vLog").innerHTML = P.log.concat([...P.dec].length ? [`${[...P.dec.values()].filter((v) => v === "exclude").length} exclusion(s) and ${[...P.dec.values()].filter((v) => v === "keep").length} keep decision(s) approved by the user.`] : []).map((l) => `<li>${esc(l)}</li>`).join("");
+  }
+  $("panel-data").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b || !P.meta) return;
+    if (b.dataset.x) P.dec.set(b.dataset.x, "exclude");
+    else if (b.dataset.k) P.dec.set(b.dataset.k, "keep");
+    else if (b.dataset.bulk) P.flags.forEach((t, id) => { if (t.includes(b.dataset.bulk)) P.dec.set(id, "exclude"); });
+    else return;
+    computeReady(); applyPipeline();
+  });
+  function applyPipeline() { // one dataset feeds map, table and analysis
+    state.pipeline = true;
+    const rows = P.ready.map((r) => normalize({ id: r.id, time: r.time, lat: r.lat, lon: r.lon, mag: r.mag, depth: r.depth, source: "USGS" + (r.net ? " (" + r.net + ")" : ""), place: r.place, url: r.url, usgs: { magType: r.magType, status: r.status } }));
+    setData(rows); state.sourceLabel = "USGS (validated)";
+    $("dateFrom").value = P.meta.from < "2015-01-01" ? "2015-01-01" : P.meta.from; $("dateTo").value = P.meta.to > "2025-12-31" ? "2025-12-31" : P.meta.to;
+    $("maxDepth").value = Math.min(70, P.meta.dep);
+    banner(`Validated USGS dataset: ${rows.length} analysis-ready records. ${P.meta.incomplete ? "⚠ Dataset may be incomplete. " : ""}Study area: ${P.meta.area}.`, P.meta.incomplete ? "" : "info");
+    refreshSources(); applyFilters(); fitToData();
+  }
+  $("btnCsv").addEventListener("click", () => {
+    if (!P.ready.length) return toast("No validated records yet.");
+    const q = (s) => '"' + String(s ?? "").replace(/"/g, '""') + '"', m = P.meta;
+    const head = [`# source: USGS FDSN Event API; retrieved ${m.at.toISOString()}; ${m.from} to ${m.to} UTC; M>=${m.mag}; depth<=${m.dep} km; area: ${m.area}; incomplete=${m.incomplete}`, "event_id,time_utc,latitude,longitude,magnitude,mag_type,depth_km,place,source_net,url,review_status"];
+    const body = P.ready.map((r) => [q(r.id), new Date(r.time).toISOString(), r.lat, r.lon, r.mag, q(r.magType), r.depth, q(r.place), q(r.net), q(r.url), P.flags.has(r.id) ? "flagged_kept" : "valid"].join(","));
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([head.concat(body).join("\n")], { type: "text/csv" })); a.download = "bayugan_validated_earthquakes.csv"; a.click(); URL.revokeObjectURL(a.href);
+  });
+
+  /* ---------------- Phone / PC mode ---------------- */
+  const canvasR = L.canvas({ padding: 0.5 });
+  function setMode(mode, redraw) {
+    state.lite = mode === "phone";
+    document.body.classList.toggle("lite", state.lite);
+    MAX_MARKERS = state.lite ? 800 : 1500; PULSE_ALL_LIMIT = state.lite ? 0 : 400;
+    $("btnMode").textContent = state.lite ? "📱 Phone" : "🖥 PC";
+    try { localStorage.setItem("bsaMode", mode); } catch (_) {}
+    if (redraw) { renderMarkers(); renderTable(); toast(state.lite ? "Phone mode: lighter map (no animations, fewer markers)" : "PC mode: full effects"); }
+  }
+  let saved = null; try { saved = localStorage.getItem("bsaMode"); } catch (_) {}
+  setMode(saved || (matchMedia("(pointer: coarse)").matches || MOBILE() ? "phone" : "pc"), false);
+  $("btnMode").addEventListener("click", () => setMode(state.lite ? "pc" : "phone", true));
+
+  /* ---------------- Tools tab: heat map, clusters, timeline, barangay counts, share/export ---------------- */
+  const heatLayer = (typeof L.heatLayer === "function") ? L.heatLayer([], { radius: 25, blur: 20, maxZoom: 11 }) : null;
+  const clusterLayer = L.layerGroup().addTo(map);
+  function refreshOverlays() {
+    clusterLayer.clearLayers(); $("tCluS").textContent = state.cl ? "Inputs changed — press Find clusters again." : "";
+    state.cl = false;
+    if (heatLayer && $("tHeat").checked) heatLayer.setLatLngs(state.rows.map((q) => [q.lat, q.lon, 1]));
+  }
+  $("tHeat").addEventListener("change", () => {
+    if (!heatLayer) { $("tHeat").checked = false; return toast("Heat-map plugin could not be loaded (check internet)."); }
+    if ($("tHeat").checked) { heatLayer.setLatLngs(state.rows.map((q) => [q.lat, q.lon, 1])).addTo(map); } else map.removeLayer(heatLayer);
+  });
+  $("tHeatR").addEventListener("input", () => { $("tHeatRV").textContent = $("tHeatR").value; heatLayer && heatLayer.setOptions({ radius: +$("tHeatR").value }); });
+
+  function dbscan(pts, epsKm, minPts) { // returns label per point: cluster index (0..) or -1 for noise
+    const n = pts.length, lab = Array(n).fill(undefined), nb = (i) => { const r = []; for (let j = 0; j < n; j++) if (haversine(pts[i][0], pts[i][1], pts[j][0], pts[j][1]) <= epsKm) r.push(j); return r; };
+    let c = -1;
+    for (let i = 0; i < n; i++) {
+      if (lab[i] !== undefined) continue;
+      const N = nb(i); if (N.length < minPts) { lab[i] = -1; continue; }
+      c++; lab[i] = c; const queue = N.filter((j) => j !== i);
+      for (let k = 0; k < queue.length; k++) {
+        const j = queue[k]; if (lab[j] === -1) lab[j] = c; if (lab[j] !== undefined) continue;
+        lab[j] = c; const M = nb(j); if (M.length >= minPts) M.forEach((x) => { if (!queue.includes(x)) queue.push(x); });
+      }
+    }
+    return lab;
+  }
+  $("tClu").addEventListener("click", () => {
+    const eps = +$("tEps").value, mp = +$("tMin").value, rows = state.rows;
+    if (!(eps > 0) || !(mp >= 2)) return $("tCluS").textContent = "Not yet calculated: enter the distance (km) and minimum events — these are research choices, so none is assumed.";
+    if (rows.length > 4000) return $("tCluS").textContent = "Too many events for in-browser clustering (>4000). Raise the minimum magnitude.";
+    const lab = dbscan(rows.map((q) => [q.lat, q.lon]), eps, mp), K = Math.max(-1, ...lab) + 1, pal = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#14b8a6", "#ec4899", "#84cc16"];
+    clusterLayer.clearLayers();
+    rows.forEach((q, i) => L.circleMarker([q.lat, q.lon], { renderer: canvasR, radius: lab[i] < 0 ? 3 : 7, color: "#fff", weight: lab[i] < 0 ? 0 : 1.5, fillColor: lab[i] < 0 ? "#94a3b8" : pal[lab[i] % pal.length], fillOpacity: 0.9, interactive: false }).addTo(clusterLayer));
+    state.cl = true;
+    $("tCluS").textContent = `${K} cluster(s); ${lab.filter((v) => v < 0).length} of ${rows.length} events are noise (grey). DBSCAN on great-circle distance (eps ${eps} km, min ${mp}). Clusters depend on these settings and are descriptive, not a significance test.`;
+  });
+  $("tCluOff").addEventListener("click", () => { clusterLayer.clearLayers(); state.cl = false; $("tCluS").textContent = ""; });
+
+  /* timeline: cumulative events up to the chosen year */
+  let playT = null;
+  function setYear(y) { state.tYear = y; $("tTime").value = y == null ? 2025 : y; $("tTimeS").textContent = y == null ? "Showing all years." : "Showing events up to the end of " + y + "."; applyFilters(); }
+  $("tTime").addEventListener("input", () => setYear(+$("tTime").value));
+  $("tTimeOff").addEventListener("click", () => { clearInterval(playT); playT = null; $("tPlay").textContent = "▶ Play"; setYear(null); });
+  $("tPlay").addEventListener("click", () => {
+    if (playT) { clearInterval(playT); playT = null; $("tPlay").textContent = "▶ Play"; return; }
+    let y = 2015; setYear(y); $("tPlay").textContent = "⏸ Pause";
+    playT = setInterval(() => { y++; if (y > 2025) { clearInterval(playT); playT = null; $("tPlay").textContent = "▶ Play"; return setYear(null); } setYear(y); }, 1200);
+  });
+
+  /* share link, GeoJSON export, print */
+  const LINK_IDS = { m: "minMag", d: "maxDepth", f: "dateFrom", t: "dateTo", r: "radius" };
+  $("tLink").addEventListener("click", () => {
+    const p = new URLSearchParams(); Object.entries(LINK_IDS).forEach(([k, id]) => p.set(k, $(id).value));
+    const c = map.getCenter(); p.set("v", [c.lat.toFixed(4), c.lng.toFixed(4), map.getZoom()].join(","));
+    const url = location.href.split("#")[0] + "#" + p;
+    (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast("Link copied"), () => prompt("Copy this link:", url));
+  });
+  $("tGj").addEventListener("click", () => {
+    if (!state.rows.length) return toast("Nothing to export.");
+    const gj = { type: "FeatureCollection", features: state.rows.map((q) => ({ type: "Feature", id: q.id, geometry: { type: "Point", coordinates: [q.lon, q.lat] }, properties: { time: new Date(q.time).toISOString(), mag: q.mag, depth_km: q.depth, place: q.place, source: q.source } })) };
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(gj)], { type: "application/geo+json" })); a.download = "bayugan_earthquakes.geojson"; a.click(); URL.revokeObjectURL(a.href);
+  });
+  $("tPrint").addEventListener("click", () => { map.invalidateSize(); setTimeout(() => window.print(), 300); });
+  (() => { // read a shared link
+    const p = new URLSearchParams(location.hash.slice(1)); if (![...p.keys()].length) return;
+    Object.entries(LINK_IDS).forEach(([k, id]) => { if (p.has(k)) $(id).value = p.get(k); });
+    const v = (p.get("v") || "").split(",").map(Number); if (v.length === 3 && v.every(Number.isFinite)) { map.setView([v[0], v[1]], v[2]); state.keepView = true; }
+  })();
 
   buildLegend();
   loadData();
